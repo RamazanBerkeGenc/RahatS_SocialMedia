@@ -21,7 +21,6 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        // Dosya ismini benzersiz yap: tarih-orijinalad
         cb(null, Date.now() + '-' + file.originalname);
     }
 });
@@ -31,7 +30,6 @@ const upload = multer({
     limits: { fileSize: 50 * 1024 * 1024 } // Max 50MB
 });
 
-// Statik klasörü dışarı aç (Videoların izlenebilmesi için)
 app.use('/uploads', express.static('uploads'));
 
 // --- VERİTABANI BAĞLANTISI ---
@@ -39,178 +37,103 @@ const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASS,
-    database: process.env.DB_NAME
+    database: process.env.DB_NAME,
+    multipleStatements: true // Çoklu SELECT dönen prosedürler için gerekli
 });
 
 db.connect((err) => {
-    if (err) {
-        console.error("Veritabanına bağlanılamadı: " + err.message);
-    } else {
-        console.log("MySQL Bağlantısı Başarılı!");
-    }
+    if (err) console.error("Veritabanı bağlantı hatası: " + err.message);
+    else console.log("MySQL Prosedür Bağlantısı Başarılı!");
 });
 
-// --- API ENDPOINT'LERİ ---
+// --- API ENDPOINT'LERİ (STORED PROCEDURES) ---
 
-// 1. Giriş API'si
+// 1. Giriş API
 app.post('/api/auth/login', (req, res) => {
     const { tc_no, password, role } = req.body;
-    const table = (role === 'teacher') ? 'ogretmenler' : 'ogrenci';
-    const query = `SELECT id, name, lastname FROM ${table} WHERE tc = ? AND password = ?`;
-    
-    db.query(query, [tc_no, password], (err, results) => {
+    db.query('CALL sp_LoginUser(?, ?, ?)', [tc_no, password, role], (err, results) => {
         if (err) return res.status(500).json({ message: "Hata!" });
-        if (results.length > 0) {
-            res.json({ success: true, user: results[0] });
-        } else {
-            res.status(401).json({ success: false, message: "TC No veya Şifre hatalı!" });
-        }
+        const user = results[0][0]; 
+        if (user) res.json({ success: true, user });
+        else res.status(401).json({ success: false, message: "TC veya Şifre hatalı!" });
     });
 });
 
-// 2. Öğrenci Notları API'si (Öğrenci Paneli)
+// 2. Öğrenci Dashboard API
 app.get('/api/student/dashboard/:studentId', (req, res) => {
-    const { studentId } = req.params;
-
-    const studentQuery = "SELECT id, name, lastname FROM ogrenci WHERE id = ?";
-    const gradesQuery = `
-        SELECT od.ders_id, d.name as lesson_name, 
-        od.sinav1, od.sinav2, od.sozlu1, od.sozlu2, od.ortalama
-        FROM ogrenci_ders od
-        JOIN dersler d ON od.ders_id = d.id
-        WHERE od.ogrenci_id = ?`;
-
-    db.query(studentQuery, [studentId], (err, studentRes) => {
-        if (err) return res.status(500).json({ message: "Hata" });
-        db.query(gradesQuery, [studentId], (err, gradesRes) => {
-            if (err) return res.status(500).json({ message: "Hata" });
-            res.json({
-                studentInfo: studentRes[0],
-                grades: gradesRes
-            });
+    db.query('CALL sp_GetStudentDashboard(?)', [req.params.studentId], (err, results) => {
+        if (err) return res.status(500).json({ message: "Dashboard verisi alınamadı." });
+        res.json({
+            studentInfo: results[0][0], 
+            grades: results[1]           
         });
     });
 });
 
-// 3. Öğretmenin Sınıflarını Getir (Dinamik Sınıf Seçici İçin)
+// 3. Öğretmen Sınıf Listesi
 app.get('/api/teacher/classes/:teacherId', (req, res) => {
-    const { teacherId } = req.params;
-    const query = `
-        SELECT DISTINCT s.id, s.name 
-        FROM sinif s
-        JOIN ogrenci o ON o.sinif_id = s.id
-        JOIN ogrenci_ders od ON od.ogrenci_id = o.id
-        WHERE od.ogretmen_id = ?`;
-
-    db.query(query, [teacherId], (err, results) => {
+    db.query('CALL sp_GetTeacherClasses(?)', [req.params.teacherId], (err, results) => {
         if (err) return res.status(500).json({ message: "Sınıflar getirilemedi." });
-        res.json(results);
+        res.json(results[0]);
     });
 });
 
-// 4. Öğretmenin Öğrencilerini Getir (Öğretmen Paneli - Filtreleme Destekli)
+// 4. Öğretmenin Öğrenci Listesi
 app.get('/api/teacher/students/:teacherId', (req, res) => {
-    const { teacherId } = req.params;
-    const query = `
-        SELECT 
-            o.id as student_id, 
-            o.name, 
-            o.lastname, 
-            o.sinif_id,  -- Frontend filtrelemesi için ID gerekli
-            s.name as class_name, 
-            od.sinav1, od.sinav2, od.sozlu1, od.sozlu2, od.ortalama, 
-            d.name as lesson_name, 
-            od.ders_id
-        FROM ogrenci_ders od
-        JOIN ogrenci o ON od.ogrenci_id = o.id
-        JOIN sinif s ON o.sinif_id = s.id 
-        JOIN dersler d ON od.ders_id = d.id
-        WHERE od.ogretmen_id = ?`;
-
-    db.query(query, [teacherId], (err, results) => {
+    db.query('CALL sp_GetTeacherStudents(?)', [req.params.teacherId], (err, results) => {
         if (err) return res.status(500).json({ message: "Öğrenci listesi alınamadı." });
-        res.json(results);
+        res.json(results[0]);
     });
 });
 
-// 5. Not Güncelleme API'si
+// 5. Not Güncelleme API
 app.post('/api/teacher/update-grades', (req, res) => {
     const { student_id, teacher_id, sinav1, sinav2, sozlu1, sozlu2 } = req.body;
-    const query = `UPDATE ogrenci_ders SET sinav1 = ?, sinav2 = ?, sozlu1 = ?, sozlu2 = ? WHERE ogrenci_id = ? AND ogretmen_id = ?`;
-    db.query(query, [sinav1, sinav2, sozlu1, sozlu2, student_id, teacher_id], (err) => {
+    db.query('CALL sp_UpdateStudentGrades(?, ?, ?, ?, ?, ?)', 
+    [student_id, teacher_id, sinav1, sinav2, sozlu1, sozlu2], (err) => {
         if (err) return res.status(500).json({ success: false });
-        res.json({ success: true, message: "Notlar başarıyla güncellendi." });
+        res.json({ success: true, message: "Notlar güncellendi." });
     });
 });
 
-// 6. Video/Materyal Yükleme API'si
+// 6. Materyal Yükleme API
 app.post('/api/teacher/upload-material', upload.single('video'), (req, res) => {
     const { ogretmen_id, ders_id, sinif_seviyesi, hedef_aralik, tip, baslik, icerik } = req.body;
-    
-    let finalIcerik = icerik;
-    if (req.file) {
-        // Eğer dosya yüklenmişse sunucu linkini oluştur
-        finalIcerik = `http://10.0.2.2:3000/uploads/videos/${req.file.filename}`;
-    }
+    let finalIcerik = req.file ? `http://10.0.2.2:3000/uploads/videos/${req.file.filename}` : icerik;
 
-    const query = `INSERT INTO egitim_materyalleri (ogretmen_id, ders_id, sinif_seviyesi, hedef_aralik, tip, icerik, baslik) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-    
-    db.query(query, [ogretmen_id, ders_id, sinif_seviyesi, hedef_aralik, tip, finalIcerik, baslik], (err) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: "Materyal kaydedilemedi." });
-        }
-        res.json({ success: true, message: "Materyal başarıyla yüklendi!", path: finalIcerik });
+    db.query('CALL sp_UploadMaterial(?, ?, ?, ?, ?, ?, ?)', 
+    [ogretmen_id, ders_id, sinif_seviyesi, hedef_aralik, tip, finalIcerik, baslik], (err) => {
+        if (err) return res.status(500).json({ success: false });
+        res.json({ success: true, message: "Materyal yüklendi!" });
     });
 });
 
-// 7. Akıllı Video Önerisi (Öğrenci ve Ders Odaklı)
-app.get('/api/student/suggested-videos/:studentId/:dersId', (req, res) => {
-    const { studentId, dersId } = req.params;
-    
-    const query = `
-        SELECT em.* FROM egitim_materyalleri em
-        JOIN ogrenci o ON o.id = ?
-        JOIN sinif s ON o.sinif_id = s.id
-        JOIN ogrenci_ders od ON od.ogrenci_id = o.id AND od.ders_id = em.ders_id
-        WHERE em.ders_id = ? 
-        AND s.name LIKE CONCAT(em.sinif_seviyesi, '%')
-        AND em.hedef_aralik = (
-            CASE 
-                WHEN od.ortalama BETWEEN 0 AND 20 THEN '0-20'
-                WHEN od.ortalama BETWEEN 21 AND 40 THEN '20-40'
-                WHEN od.ortalama BETWEEN 41 AND 60 THEN '40-60'
-                WHEN od.ortalama BETWEEN 61 AND 80 THEN '60-80'
-                ELSE '80-100'
-            END
-        )`;
-
-    db.query(query, [studentId, dersId], (err, results) => {
-        if (err) return res.status(500).send("Video öneri hatası.");
-        res.json(results);
-    });
-});
-
-// Öğretmenin yüklediği materyalleri getir
+// 7. Öğretmenin Materyalleri Listelemesi
 app.get('/api/teacher/materials/:teacherId', (req, res) => {
-    const { teacherId } = req.params;
-    const query = `SELECT * FROM egitim_materyalleri WHERE ogretmen_id = ? ORDER BY yukleme_tarihi DESC`;
-    db.query(query, [teacherId], (err, results) => {
+    db.query('CALL sp_GetTeacherMaterials(?)', [req.params.teacherId], (err, results) => {
         if (err) return res.status(500).send(err);
-        res.json(results);
+        res.json(results[0]);
     });
 });
 
-// Materyal sil
+// 8. Materyal Silme
 app.delete('/api/teacher/materials/:id', (req, res) => {
-    const { id } = req.params;
-    db.query(`DELETE FROM egitim_materyalleri WHERE id = ?`, [id], (err) => {
+    db.query('CALL sp_DeleteMaterial(?)', [req.params.id], (err) => {
         if (err) return res.status(500).json({ success: false });
         res.json({ success: true });
     });
 });
 
+// 9. Akıllı Video Önerisi
+app.get('/api/student/suggested-videos/:studentId/:dersId', (req, res) => {
+    const { studentId, dersId } = req.params;
+    db.query('CALL sp_GetSuggestedVideos(?, ?)', [studentId, dersId], (err, results) => {
+        if (err) return res.status(500).send("Video öneri hatası.");
+        res.json(results[0]);
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`RahatS Sunucusu ${PORT} portunda başarıyla çalışıyor.`);
+    console.log(`RahatS Sunucusu ${PORT} portunda prosedürlerle çalışıyor.`);
 });

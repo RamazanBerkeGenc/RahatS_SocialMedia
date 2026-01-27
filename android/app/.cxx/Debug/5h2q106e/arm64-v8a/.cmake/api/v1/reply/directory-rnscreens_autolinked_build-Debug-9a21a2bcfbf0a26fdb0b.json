@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "rnscreens_autolinked_build",
+		"source" : "C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/node_modules/react-native-screens/android/src/main/jni"
+	}
+}

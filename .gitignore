@@ -1,75 +1,49 @@
-# OSX
-#
+# --- İşletim Sistemi Dosyaları ---
 .DS_Store
+Thumbs.db
+*.swp
 
-# Xcode
-#
-build/
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata
-*.xccheckout
-*.moved-aside
-DerivedData
-*.hmap
-*.ipa
-*.xcuserstate
-**/.xcode.env.local
-
-# Android/IntelliJ
-#
-build/
-.idea
-.gradle
-local.properties
-*.iml
-*.hprof
-.cxx/
+# --- React Native / Android ---
+android/local.properties
+android/.gradle
+android/.idea
+android/app/build
+android/build
 *.keystore
 !debug.keystore
-.kotlin/
+/android/app/debug.keystore
 
-# node.js
-#
+# --- React Native / iOS ---
+ios/Pods/
+ios/build/
+ios/DerivedData/
+*.xcuserstate
+*.xcresult
+
+# --- Node.js (Backend) ---
 node_modules/
-npm-debug.log
-yarn-error.log
+npm-debug.log*
+yarn-error.log*
+/backend/uploads/videos/*
+!/backend/uploads/videos/.gitkeep
 
-# fastlane
-#
-# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
-# screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/
+# --- Hassas Bilgiler ve Ortam Değişkenleri (KRİTİK) ---
+# Hem root, hem backend hem de mobile klasöründeki .env dosyalarını gizler
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+mobile/.env
 
-**/fastlane/report.xml
-**/fastlane/Preview.html
-**/fastlane/screenshots
-**/fastlane/test_output
+# Örnek dosyaların GitHub'a gitmesine izin ver (Kullanıcılar buna bakarak kendi .env'lerini oluşturacak)
+!.env.example
+!backend/.env.example
+!mobile/.env.example
 
-# Bundle artifact
-*.jsbundle
-
-# Ruby / CocoaPods
-**/Pods/
-/vendor/bundle/
-
-# Temporary files created by Metro to check the health of the file watcher
-.metro-health-check*
-
-# testing
-/coverage
-
-# Yarn
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
+# --- IDE Ayarları ---
+.vscode/
+.idea/
+*.iml
+.expo/
