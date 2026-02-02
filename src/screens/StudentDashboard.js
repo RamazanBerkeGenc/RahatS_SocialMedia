@@ -6,7 +6,9 @@ import {
 import apiClient from '../api/apiClient';
 
 const StudentDashboard = ({ route, navigation }) => {
-  const { studentId } = route.params;
+  // DÜZELTME: AppNavigator'dan gelen parametreyi güvenli bir şekilde alıyoruz
+  const { studentId } = route.params || {};
+  
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -17,6 +19,7 @@ const StudentDashboard = ({ route, navigation }) => {
   const [selectedLessonName, setSelectedLessonName] = useState('');
 
   const fetchStudentData = async () => {
+    if (!studentId) return;
     try {
       const response = await apiClient.get(`/student/dashboard/${studentId}`);
       setData(response.data);
@@ -29,7 +32,13 @@ const StudentDashboard = ({ route, navigation }) => {
     }
   };
 
-  useEffect(() => { fetchStudentData(); }, []);
+  useEffect(() => { 
+    if (studentId) {
+      fetchStudentData(); 
+    } else {
+      Alert.alert("Hata", "Öğrenci bilgisi eksik, lütfen tekrar giriş yapın.");
+    }
+  }, [studentId]);
 
   const handleStudy = async (dersId, lessonName) => {
     try {
@@ -46,7 +55,6 @@ const StudentDashboard = ({ route, navigation }) => {
   };
 
   const handleWatch = (url) => {
-    // URL boş değilse tarayıcıda açar
     if (url) {
       Linking.openURL(url).catch(() => Alert.alert("Hata", "Bağlantı açılamadı."));
     }
@@ -66,7 +74,7 @@ const StudentDashboard = ({ route, navigation }) => {
         <View style={styles.cardHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.lessonName}>{item.lesson_name}</Text>
-            <Text style={styles.teacherName}>{item.teacher_name || 'Hoca Atanmadı'}</Text>
+            <Text style={styles.teacherName}>{item.teacher_name || 'Eğitmen Atanmadı'}</Text>
           </View>
           
           <TouchableOpacity 
@@ -86,8 +94,8 @@ const StudentDashboard = ({ route, navigation }) => {
 
         <View style={styles.detailsGrid}>
           {[
-            { label: '1. Sınav', val: item.sinav1 },
-            { label: '2. Sınav', val: item.sinav2 },
+            { label: 'Sınav 1', val: item.sinav1 },
+            { label: 'Sınav 2', val: item.sinav2 },
             { label: 'Sözlü 1', val: item.sozlu1 },
             { label: 'Sözlü 2', val: item.sozlu2 },
           ].map((detail, idx) => (
@@ -103,24 +111,21 @@ const StudentDashboard = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header - Artık Tab Navigator içinde olduğu için padding değerlerini optimize ettik */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.headerTitle}>Merhaba, {data?.studentInfo?.name || 'Öğrenci'}</Text>
-            <Text style={styles.headerSubtitle}>RahatS Başarı Çizelgesi</Text>
+            <Text style={styles.headerSubtitle}>RahatS Başarı Analizi</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.logoutButton} 
-            onPress={() => navigation.reset({index:0, routes:[{name:'Welcome'}]})}
-          >
-            <Text style={styles.logoutText}>Çıkış</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
       {loading && !refreshing ? (
-        <ActivityIndicator size="large" color="#50c878" style={{ marginTop: 50 }} />
+        <View style={styles.centerLoader}>
+            <ActivityIndicator size="large" color="#50c878" />
+            <Text style={{marginTop: 10, color: '#666'}}>Başarı verilerin yükleniyor...</Text>
+        </View>
       ) : (
         <ScrollView 
           refreshControl={
@@ -135,7 +140,9 @@ const StudentDashboard = ({ route, navigation }) => {
           {data?.grades && data.grades.length > 0 ? (
             data.grades.map(item => renderGradeCard(item))
           ) : (
-            <Text style={styles.emptyText}>Kayıtlı ders ve not bulunamadı.</Text>
+            <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Henüz not girişi yapılmamış.</Text>
+            </View>
           )}
         </ScrollView>
       )}
@@ -146,7 +153,7 @@ const StudentDashboard = ({ route, navigation }) => {
           <View style={styles.videoModalContent}>
             <View style={styles.modalIndicator} />
             <Text style={styles.modalTitle}>{selectedLessonName}</Text>
-            <Text style={styles.modalSub}>Seviyene göre seçilen içerikler:</Text>
+            <Text style={styles.modalSub}>Yapay zekanın senin için seçtiği materyaller:</Text>
 
             <FlatList
               data={selectedLessonVideos}
@@ -158,12 +165,12 @@ const StudentDashboard = ({ route, navigation }) => {
                   </View>
                   <View style={{flex: 1}}>
                     <Text style={styles.videoListTitle}>{item.baslik}</Text>
-                    <Text style={styles.videoListMeta}>Aralık: %{item.hedef_aralik}</Text>
+                    <Text style={styles.videoListMeta}>İhtiyaç Seviyesi: %{item.hedef_aralik}</Text>
                   </View>
-                  <Text style={styles.watchText}>İzle</Text>
+                  <Text style={styles.watchText}>Hemen İzle</Text>
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={<Text style={styles.emptyText}>Bu ders için uygun öneri bulunamadı.</Text>}
+              ListEmptyComponent={<Text style={styles.emptyText}>Şu an uygun bir öneri bulunmuyor.</Text>}
               style={{ marginVertical: 15 }}
             />
 
@@ -181,41 +188,41 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f6fa' },
   header: { 
     backgroundColor: '#50c878', 
-    paddingTop: 60, paddingBottom: 30, paddingHorizontal: 25, 
-    borderBottomLeftRadius: 35, borderBottomRightRadius: 35, elevation: 8
+    paddingTop: 50, paddingBottom: 25, paddingHorizontal: 25, 
+    borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 5
   },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  logoutButton: { backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingVertical: 8, paddingHorizontal: 15, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' },
-  logoutText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
-  headerSubtitle: { fontSize: 13, color: '#e8f8f0', marginTop: 2 },
-  listContainer: { padding: 20 },
-  card: { backgroundColor: '#fff', borderRadius: 22, padding: 18, marginBottom: 15, elevation: 4 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#f1f2f6', paddingBottom: 12, marginBottom: 15 },
-  lessonName: { fontSize: 18, fontWeight: 'bold', color: '#2f3640' },
-  teacherName: { fontSize: 12, color: '#7f8c8d' },
-  studyButton: { backgroundColor: '#f1c40f', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, elevation: 2 },
-  studyButtonText: { color: '#2f3640', fontWeight: 'bold', fontSize: 12 },
-  avgBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, alignItems: 'center', minWidth: 55 },
-  avgLabel: { fontSize: 8, fontWeight: 'bold', color: '#fff' },
-  avgValue: { fontSize: 15, fontWeight: 'bold', color: '#fff' },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  headerSubtitle: { fontSize: 12, color: '#e8f8f0', marginTop: 2 },
+  listContainer: { padding: 15 },
+  centerLoader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  card: { backgroundColor: '#fff', borderRadius: 20, padding: 18, marginBottom: 12, elevation: 3 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#f1f2f6', paddingBottom: 10, marginBottom: 12 },
+  lessonName: { fontSize: 17, fontWeight: 'bold', color: '#2f3640' },
+  teacherName: { fontSize: 11, color: '#7f8c8d' },
+  studyButton: { backgroundColor: '#f1c40f', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8 },
+  studyButtonText: { color: '#2f3640', fontWeight: 'bold', fontSize: 11 },
+  avgBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignItems: 'center', minWidth: 50 },
+  avgLabel: { fontSize: 7, fontWeight: 'bold', color: '#fff' },
+  avgValue: { fontSize: 14, fontWeight: 'bold', color: '#fff' },
   detailsGrid: { flexDirection: 'row', justifyContent: 'space-around' },
   detailItem: { alignItems: 'center' },
-  detailLabel: { fontSize: 10, color: '#a4b0be', marginBottom: 2 },
-  detailValue: { fontSize: 15, fontWeight: '600', color: '#2f3640' },
+  detailLabel: { fontSize: 9, color: '#a4b0be', marginBottom: 1 },
+  detailValue: { fontSize: 14, fontWeight: '600', color: '#2f3640' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  videoModalContent: { backgroundColor: '#fff', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25, maxHeight: '80%' },
-  modalIndicator: { width: 40, height: 5, backgroundColor: '#dcdde1', borderRadius: 5, alignSelf: 'center', marginBottom: 15 },
-  modalTitle: { fontSize: 22, fontWeight: 'bold', color: '#2f3640', textAlign: 'center' },
-  modalSub: { fontSize: 12, color: '#7f8c8d', textAlign: 'center', marginTop: 5 },
-  videoListCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fa', padding: 15, borderRadius: 18, marginBottom: 12 },
-  videoIconBox: { width: 45, height: 45, backgroundColor: '#fff', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 15, elevation: 2 },
-  videoListTitle: { fontSize: 15, fontWeight: 'bold', color: '#2f3640' },
-  videoListMeta: { fontSize: 11, color: '#4a90e2', fontWeight: '600' },
-  watchText: { color: '#50c878', fontWeight: 'bold', fontSize: 13 },
-  closeModalBtn: { backgroundColor: '#e84118', padding: 16, borderRadius: 15, alignItems: 'center', marginTop: 10 },
-  closeModalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  emptyText: { textAlign: 'center', color: '#7f8c8d', marginTop: 20 }
+  videoModalContent: { backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, maxHeight: '85%' },
+  modalIndicator: { width: 40, height: 4, backgroundColor: '#dcdde1', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#2f3640', textAlign: 'center' },
+  modalSub: { fontSize: 11, color: '#7f8c8d', textAlign: 'center', marginTop: 3 },
+  videoListCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fa', padding: 12, borderRadius: 15, marginBottom: 10 },
+  videoIconBox: { width: 40, height: 40, backgroundColor: '#fff', borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12, elevation: 1 },
+  videoListTitle: { fontSize: 14, fontWeight: 'bold', color: '#2f3640' },
+  videoListMeta: { fontSize: 10, color: '#4a90e2', fontWeight: '600' },
+  watchText: { color: '#50c878', fontWeight: 'bold', fontSize: 12 },
+  closeModalBtn: { backgroundColor: '#e84118', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 5 },
+  closeModalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  emptyContainer: { alignItems: 'center', marginTop: 50 },
+  emptyText: { textAlign: 'center', color: '#7f8c8d', fontSize: 14 }
 });
 
 export default StudentDashboard;

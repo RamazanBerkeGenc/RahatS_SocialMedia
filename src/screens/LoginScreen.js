@@ -11,7 +11,7 @@ const LoginScreen = ({ route, navigation }) => {
   const { role } = route.params;
   const [tc, setTc] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(true); // Şifre gizleme kontrolü
+  const [showPassword, setShowPassword] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -31,15 +31,23 @@ const LoginScreen = ({ route, navigation }) => {
       });
 
       if (response.data.success) {
-        const nextScreen = role === 'teacher' ? 'TeacherDashboard' : 'StudentDashboard';
-        const params = role === 'teacher' ? { teacherId: response.data.user.id } : { studentId: response.data.user.id };
+        // --- KRİTİK DEĞİŞİKLİK BURADA ---
+        // Artık doğrudan Dashboard'a değil, 'Main' (Tab Navigator) ekranına gidiyoruz.
+        // Dashboard ekranı, Main içindeki mantığa göre (öğrenci/öğretmen) otomatik açılacak.
         
         navigation.reset({
           index: 0,
-          routes: [{ name: nextScreen, params: params }],
+          routes: [{ 
+            name: 'Main', 
+            params: { 
+              role: role, 
+              userId: response.data.user.id 
+            } 
+          }],
         });
       }
     } catch (error) {
+      console.error("Giriş Hatası:", error);
       Alert.alert("Giriş Başarısız", "Bilgilerinizi kontrol edin.");
     } finally {
       setLoading(false);
@@ -57,7 +65,7 @@ const LoginScreen = ({ route, navigation }) => {
           value={tc}
           onChangeText={setTc}
           keyboardType="numeric"
-          maxLength={11} // 11 hane kısıtlaması
+          maxLength={11}
         />
 
         <CustomInput 
@@ -65,9 +73,9 @@ const LoginScreen = ({ route, navigation }) => {
           placeholder="••••••"
           value={password}
           onChangeText={setPassword}
-          secureTextEntry={showPassword} // State'e göre değişir
+          secureTextEntry={showPassword}
           isPassword={true}
-          onToggleShow={() => setShowPassword(!showPassword)} // Göz butonu tetikleyici
+          onToggleShow={() => setShowPassword(!showPassword)}
         />
 
         <CustomButton 

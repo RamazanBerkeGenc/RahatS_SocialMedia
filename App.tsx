@@ -1,11 +1,10 @@
-// 1. MUTLAKA EN ÜSTTE OLMALI (Navigasyonun dokunmatiği algılaması için)
 import 'react-native-gesture-handler'; 
 import React from 'react';
-import { StatusBar, useColorScheme, StyleSheet, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native'; // Konteynırı buraya ekledik
 
-// Senin yazdığın navigasyon dosyası
+// Navigasyon yapın
 import AppNavigator from './src/navigation/AppNavigator';
 
 function App(): React.JSX.Element {
@@ -18,9 +17,8 @@ function App(): React.JSX.Element {
         backgroundColor="transparent" 
         translucent 
       />
-      
-      {/* Hata buradaydı: NewAppScreen ve AppContent'i sildik.
-          Artık uygulama senin sayfalarını yöneten AppNavigator ile başlıyor.
+      {/* DİKKAT: Uygulamanın en tepesinde tek bir NavigationContainer olmalı.
+          AppNavigator.js içindekini sildiğimiz için buraya ekledik.
       */}
       <NavigationContainer>
         <AppNavigator />
