@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, 
   ActivityIndicator, RefreshControl 
@@ -21,67 +21,58 @@ const ProfileScreen = ({ route, navigation }) => {
 
   const isOwnProfile = userId === currentUserId && role === currentRole;
 
-  useEffect(() => {
-    if (userId && isFocused) fetchProfileData();
-  }, [userId, isFocused]);
-
-  const fetchProfileData = async () => {
+  const fetchProfileData = useCallback(async (isRefreshing = false) => {
     try {
-      if (!refreshing && userPosts.length === 0) setLoading(true);
-      const res = await apiClient.get(`/social/profile/${userId}/${role}`);
+      if (!isRefreshing && userPosts.length === 0) setLoading(true);
       
-      const profileStats = res.data[0][0];
-      setStats({
-        followers: profileStats?.followers_count || 0,
-        following: profileStats?.following_count || 0
-      });
-      
-      setIsFollowing(profileStats?.is_following === 1);
-      setUserPosts(res.data[1] || []);
-
-      if (role === 'student') {
-        const studentRes = await apiClient.get(`/student/dashboard/${userId}`);
-        const info = studentRes.data.studentInfo;
-        if (info) setFullName(`${info.name} ${info.lastname}`);
-      } else if (role === 'teacher') {
-        const teacherRes = await apiClient.get(`/teacher/students/${userId}`);
-        const tData = teacherRes.data[0];
-        setFullName(tData ? `${tData.teacher_name} ${tData.teacher_lastname}` : "Eğitmen");
+      // 1. İSİM ÇEKME MANTIĞI
+      try {
+        if (role === 'student') {
+          const studentRes = await apiClient.get(`/student/dashboard/${userId}`);
+          const info = studentRes.data.studentInfo;
+          if (info) setFullName(`${info.name} ${info.lastname}`);
+        } else if (role === 'teacher') {
+          const teacherRes = await apiClient.get(`/teacher/students/${userId}`);
+          const tData = teacherRes.data[0];
+          if (tData) {
+            setFullName(`${tData.teacher_name || tData.name} ${tData.teacher_lastname || tData.lastname}`);
+          }
+        }
+      } catch (err) {
+        console.log("İsim çekme hatası:", err);
       }
+
+      // 2. PROFİL İSTATİSTİKLERİ VE POSTLAR
+      const res = await apiClient.get(`/social/profile/${userId}/${role}/${currentUserId}/${currentRole}`);
+      
+      if (res.data && res.data[0]) {
+        const profileStats = res.data[0][0];
+        setStats({
+          followers: profileStats?.followers_count || 0,
+          following: profileStats?.following_count || 0
+        });
+        setIsFollowing(profileStats?.is_following === 1);
+        setUserPosts(res.data[1] || []);
+      }
+
     } catch (error) {
       console.error("Profil yükleme hatası:", error);
+      if (!fullName) setFullName("Kullanıcı");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [userId, role, currentUserId, currentRole]);
 
-  const handleFollowToggle = async () => {
-    const previousState = isFollowing;
-    const previousFollowers = stats.followers;
-
-    setIsFollowing(!previousState);
-    setStats(prev => ({
-      ...prev,
-      followers: previousState ? Math.max(0, prev.followers - 1) : prev.followers + 1
-    }));
-
-    try {
-      const response = await apiClient.post('/social/follow', {
-        follower_id: currentUserId,
-        follower_role: currentRole,
-        following_id: userId,
-        following_role: role
-      });
-      if (!response.data.success) throw new Error();
-    } catch (error) {
-      setIsFollowing(previousState);
-      setStats(prev => ({ ...prev, followers: previousFollowers }));
-      Alert.alert("Hata", "İşlem şu an gerçekleştirilemiyor.");
+  useEffect(() => {
+    if (userId && isFocused) {
+      fetchProfileData();
     }
-  };
+  }, [userId, isFocused, fetchProfileData]);
 
+  // --- BEĞENİ SİSTEMİ (FeedScreen Mimarisi ile Aynı) ---
   const handlePostLike = async (postId) => {
+    const originalPosts = [...userPosts];
     const updatedPosts = userPosts.map(post => {
       if (post.id === postId) {
         const currentlyLiked = post.is_liked === 1;
@@ -96,19 +87,72 @@ const ProfileScreen = ({ route, navigation }) => {
     setUserPosts(updatedPosts);
 
     try {
-      await apiClient.post('/social/like', {
+      const response = await apiClient.post('/social/like', {
         post_id: postId,
         user_id: currentUserId,
         user_role: currentRole
       });
+
+      if (response.data.success) {
+        setUserPosts(currentPosts => currentPosts.map(p => {
+          if (p.id === postId) return { ...p, is_liked: response.data.is_liked };
+          return p;
+        }));
+      } else {
+        setUserPosts(originalPosts);
+      }
     } catch (error) {
-      fetchProfileData();
+      setUserPosts(originalPosts);
     }
   };
 
-  // --- DETAY SAYFASINA GİTME FONKSİYONU ---
+  // --- TAKİP SİSTEMİ (Düzeltilmiş ve Senkronize) ---
+  const handleFollowToggle = async () => {
+    const previousState = isFollowing;
+    const previousFollowers = stats.followers;
+
+    // 1. İyimser Güncelleme
+    setIsFollowing(!previousState);
+    setStats(prev => ({
+      ...prev,
+      followers: previousState ? Math.max(0, prev.followers - 1) : prev.followers + 1
+    }));
+
+    try {
+      // 2. API İsteği
+      const response = await apiClient.post('/social/follow', {
+        follower_id: currentUserId,
+        follower_role: currentRole,
+        following_id: userId,
+        following_role: role
+      });
+
+      // 3. Backend verisi ile kesin doğrulama
+      if (response.data.success) {
+        setIsFollowing(response.data.is_following === 1);
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      // Hata durumunda eski haline döndür
+      setIsFollowing(previousState);
+      setStats(prev => ({ ...prev, followers: previousFollowers }));
+      Alert.alert("Hata", "Takip işlemi gerçekleştirilemedi.");
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    try {
+      const res = await apiClient.delete(`/social/post/${postId}`, {
+        data: { userId: currentUserId, role: currentRole } 
+      });
+      if (res.data.success) fetchProfileData(true);
+    } catch (error) {
+      Alert.alert("Hata", "Gönderi silinemedi.");
+    }
+  };
+
   const navigateToDetail = (postItem) => {
-    // PostDetailStack nerede olursa olsun güvenli geçiş sağlar
     navigation.navigate('Sosyal', {
       screen: 'PostDetail',
       params: { post: postItem, userId: currentUserId, role: currentRole }
@@ -130,23 +174,18 @@ const ProfileScreen = ({ route, navigation }) => {
           <Text style={styles.logoutText}>Çıkış</Text>
         </TouchableOpacity>
       )}
-
       <View style={styles.profileInfo}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.avatarLetter}>{fullName?.charAt(0) || "?"}</Text>
+          <Text style={styles.avatarLetter}>{fullName?.charAt(0).toUpperCase() || "?"}</Text>
         </View>
         <Text style={styles.userName} numberOfLines={1}>{fullName || "Yükleniyor..."}</Text>
-        <Text style={styles.userRoleText}>
-          {role === 'teacher' ? '👨‍🏫 Yetkili Eğitmen' : '🎓 RahatS Öğrencisi'}
-        </Text>
+        <Text style={styles.userRoleText}>{role === 'teacher' ? '👨‍🏫 Yetkili Eğitmen' : '🎓 RahatS Öğrencisi'}</Text>
       </View>
-
       <View style={styles.statsBar}>
         <View style={styles.statBox}><Text style={styles.statCount}>{userPosts.length}</Text><Text style={styles.statLabel}>Gönderi</Text></View>
         <View style={[styles.statBox, { marginHorizontal: 40 }]}><Text style={styles.statCount}>{stats.followers}</Text><Text style={styles.statLabel}>Takipçi</Text></View>
         <View style={styles.statBox}><Text style={styles.statCount}>{stats.following}</Text><Text style={styles.statLabel}>Takip</Text></View>
       </View>
-
       {!isOwnProfile && (
         <TouchableOpacity 
           style={[styles.followBtn, isFollowing && styles.unfollowBtn]} 
@@ -171,24 +210,22 @@ const ProfileScreen = ({ route, navigation }) => {
           data={userPosts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-            <TouchableOpacity 
-              onPress={() => navigateToDetail(item)}
-              activeOpacity={0.9}
-            >
-              <PostCard 
-                post={item} 
-                onLike={() => handlePostLike(item.id)}
-                onComment={() => navigateToDetail(item)}
-                onProfilePress={() => {
-                   if (item.user_id !== userId) {
-                      navigation.push('Profil', { userId: item.user_id, role: item.user_role });
-                   }
-                }} 
-              />
-            </TouchableOpacity>
+            <PostCard 
+              post={item} 
+              currentUserId={currentUserId}
+              currentRole={currentRole}
+              onLike={() => handlePostLike(item.id)}
+              onComment={() => navigateToDetail(item)}
+              onDelete={handleDeletePost}
+              onProfilePress={(id, r) => {
+                if (id !== userId || r !== role) {
+                  navigation.push('Profil', { userId: id, role: r });
+                }
+              }} 
+            />
           )}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfileData(); }} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfileData(true); }} colors={['#007bff']} />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -202,7 +239,6 @@ const ProfileScreen = ({ route, navigation }) => {
   );
 };
 
-// ... (Stiller aynı kalıyor)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f2f5' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },

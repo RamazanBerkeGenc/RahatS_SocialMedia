@@ -3,12 +3,13 @@ import { View, TextInput, TouchableOpacity, Text, StyleSheet, Alert, ActivityInd
 import apiClient from '../api/apiClient';
 
 const CreatePostScreen = ({ route, navigation }) => {
-  // 1. Navigasyondan gelen dinamik verileri alıyoruz
+  // Navigasyondan gelen dinamik veriler
   const { userId, role, onPostCreated } = route.params || {}; 
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleShare = async () => {
+    // Boş içerik kontrolü
     if (!content.trim()) {
       Alert.alert("Hata", "Lütfen bir şeyler yazın.");
       return;
@@ -16,14 +17,11 @@ const CreatePostScreen = ({ route, navigation }) => {
 
     setLoading(true);
     try {
-      // BACKEND DÜZELTMESİ: Multer beklediği için FormData oluşturuyoruz
+      // Backend'in multer yapılandırması için FormData kullanıyoruz
       const formData = new FormData();
-      formData.append('user_id', userId);     // Giriş yapanın gerçek ID'si
-      formData.append('user_role', role);     // 'teacher' veya 'student'
+      formData.append('user_id', userId);     
+      formData.append('user_role', role);     
       formData.append('content', content.trim());
-
-      // Eğer görsel özelliği eklersen buraya ekleyebilirsin:
-      // formData.append('image', { uri: ..., name: 'photo.jpg', type: 'image/jpeg' });
 
       const response = await apiClient.post('/social/create-post', formData, {
         headers: {
@@ -31,20 +29,22 @@ const CreatePostScreen = ({ route, navigation }) => {
         },
       });
 
+      // Backend tarafında is_clean kontrolü True ise kayıt başarılı döner
       if (response.data.success) {
         Alert.alert("Başarılı", "Paylaşımınız yayınlandı!");
         
-        // Ana sayfayı tetikle ve geri dön
+        // Feed'i yenile ve geri dön
         if (onPostCreated) onPostCreated(); 
         navigation.goBack();
       }
     } catch (error) {
-      // AI Güvenlik Filtresi (400 Hatası)
+      // AI GÜVENLİK FİLTRESİ (HTTP 400):
+      // Backend uygunsuz içerik tespit ettiğinde 400 döndürür ve veritabanına kayıt yapmaz.
       if (error.response && error.response.status === 400) {
-        Alert.alert("Güvenlik Filtresi", error.response.data.message);
+        Alert.alert("Güvenlik Filtresi", error.response.data.message || "İçeriğiniz kurallara aykırı bulundu.");
       } else {
         console.log("Hata Detayı:", error.response?.data || error.message);
-        Alert.alert("Hata", "Paylaşım sunucuya iletilemedi. Lütfen bağlantınızı kontrol edin.");
+        Alert.alert("Hata", "Paylaşım şu an iletilemiyor. Lütfen bağlantınızı kontrol edin.");
       }
     } finally {
       setLoading(false);
@@ -64,12 +64,13 @@ const CreatePostScreen = ({ route, navigation }) => {
         multiline
         value={content}
         onChangeText={setContent}
+        placeholderTextColor="#95a5a6"
       />
       
       <TouchableOpacity 
-        style={[styles.button, loading && { backgroundColor: '#ccc' }]} 
+        style={[styles.button, (loading || !content.trim()) && { backgroundColor: '#ccc' }]} 
         onPress={handleShare}
-        disabled={loading}
+        disabled={loading || !content.trim()}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />
@@ -84,9 +85,9 @@ const CreatePostScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#fff' },
   roleLabel: { fontSize: 12, color: '#95a5a6', marginBottom: 10, textAlign: 'right', fontStyle: 'italic' },
-  input: { height: 150, textAlignVertical: 'top', fontSize: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  button: { backgroundColor: '#007bff', padding: 15, borderRadius: 10, marginTop: 20, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: 'bold' }
+  input: { height: 150, textAlignVertical: 'top', fontSize: 16, borderBottomWidth: 1, borderBottomColor: '#eee', color: '#333' },
+  button: { backgroundColor: '#007bff', padding: 15, borderRadius: 10, marginTop: 20, alignItems: 'center', elevation: 2 },
+  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });
 
 export default CreatePostScreen;

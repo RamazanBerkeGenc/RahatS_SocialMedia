@@ -284,11 +284,11 @@
 	[
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec"
+			"id" : "react_codegen_RNImagePickerSpec::@f66ee9a2efecfb28bee4"
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_RNImagePickerSpec::@f66ee9a2efecfb28bee4"
+			"id" : "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec"
 		},
 		{
 			"backtrace" : 4,
@@ -296,11 +296,11 @@
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_RNVectorIconsSpec::@479809fae146501fd34d"
+			"id" : "react_codegen_rnscreens::@25bcbd507e98d3a854ad"
 		},
 		{
 			"backtrace" : 4,
-			"id" : "react_codegen_rnscreens::@25bcbd507e98d3a854ad"
+			"id" : "react_codegen_RNVectorIconsSpec::@479809fae146501fd34d"
 		}
 	],
 	"id" : "appmodules::@6890427a1f51a3e7e1df",

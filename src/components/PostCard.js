@@ -1,33 +1,61 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 
-const PostCard = ({ post, onLike, onComment, onProfilePress }) => {
+const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUserId, currentRole }) => {
   
-  // Beğeni durumuna göre ikon ve renk belirleme
-  // Veritabanından gelen 'is_liked' alanı 1 ise dolu kalp, 0 ise boş kalp gösterir
+  // Beğeni durumu kontrolü
   const isLiked = post.is_liked === 1;
+
+  // Fotoğraftaki isim çıkmama sorununa karşı koruma
+  const displayName = post.author_name || "Kullanıcı";
+
+  // Gönderi sahibi kontrolü: Sadece kendi gönderisinde silme butonu çıkar
+  const isOwner = post.user_id == currentUserId && post.user_role == currentRole;
+
+  const confirmDelete = () => {
+    Alert.alert(
+      "Gönderiyi Sil",
+      "Bu gönderiyi kalıcı olarak silmek istediğinize emin misiniz?",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        { 
+          text: "Sil", 
+          style: "destructive", 
+          onPress: () => onDelete(post.id) 
+        }
+      ]
+    );
+  };
 
   return (
     <View style={styles.card}>
       {/* Profil Bilgisi - Tıklanabilir */}
-      <TouchableOpacity 
-        style={styles.header} 
-        onPress={() => onProfilePress(post.user_id, post.user_role)}
-      >
-        <View style={styles.authorInfo}>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.authorInfo} 
+          onPress={() => onProfilePress(post.user_id, post.user_role)}
+        >
           <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>{post.author_name?.charAt(0).toUpperCase()}</Text>
+            <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
           </View>
           <View>
-            <Text style={styles.author}>{post.author_name}</Text>
+            <Text style={styles.author}>{displayName}</Text>
             <Text style={styles.role}>
               {post.user_role === 'teacher' ? '👨‍🏫 Öğretmen' : '🎓 Öğrenci'}
             </Text>
           </View>
-        </View>
-        <Icon name="ellipsis-horizontal" size={20} color="#666" />
-      </TouchableOpacity>
+        </TouchableOpacity>
+        
+        {/* SİLME BUTONU: Sadece gönderi sahibi görebilir */}
+        {isOwner ? (
+          <TouchableOpacity onPress={confirmDelete} style={styles.deleteBtn}>
+            <Icon name="trash-outline" size={20} color="#ff4757" />
+          </TouchableOpacity>
+        ) : (
+          <Icon name="ellipsis-horizontal" size={20} color="#636e72" />
+        )}
+      </View>
       
       {/* İçerik */}
       <Text style={styles.content}>{post.content}</Text>
@@ -44,7 +72,6 @@ const PostCard = ({ post, onLike, onComment, onProfilePress }) => {
           onPress={() => onLike(post.id)}
           activeOpacity={0.6}
         >
-          {/* BEĞENİ GERİ ALMA GÖRSELİ: isLiked durumuna göre ikon değişir */}
           <Icon 
             name={isLiked ? "heart" : "heart-outline"} 
             size={22} 
@@ -74,8 +101,8 @@ const styles = StyleSheet.create({
     marginBottom: 12, 
     padding: 15, 
     borderRadius: 12,
-    elevation: 3, // Android gölge
-    shadowColor: '#000', // iOS gölge
+    elevation: 3, 
+    shadowColor: '#000', 
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -115,6 +142,9 @@ const styles = StyleSheet.create({
     fontSize: 11, 
     color: '#7f8c8d',
     marginTop: 2
+  },
+  deleteBtn: {
+    padding: 5
   },
   content: { 
     fontSize: 15, 
