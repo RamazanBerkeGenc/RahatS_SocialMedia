@@ -5,6 +5,7 @@
     "C:\\Users\\ramaz\\Documents\\GitHub\\RahatS_SocialMedia\\node_modules\\react-native-safe-area-context\\android\\src\\main\\jni\\CMakeLists.txt",
     "C:\\Users\\ramaz\\Documents\\GitHub\\RahatS_SocialMedia\\node_modules\\react-native-screens\\android\\src\\main\\jni\\CMakeLists.txt",
     "C:\\Users\\ramaz\\Documents\\GitHub\\RahatS_SocialMedia\\node_modules\\react-native-vector-icons\\android\\build\\generated\\source\\codegen\\jni\\CMakeLists.txt",
+    "C:\\Users\\ramaz\\Documents\\GitHub\\RahatS_SocialMedia\\node_modules\\react-native-webview\\android\\build\\generated\\source\\codegen\\jni\\CMakeLists.txt",
     "C:\\Users\\ramaz\\Documents\\GitHub\\RahatS_SocialMedia\\node_modules\\react-native\\ReactAndroid\\cmake-utils\\default-app-setup\\CMakeLists.txt"
   ],
   "cleanCommandsComponents": [
@@ -34,6 +35,11 @@
         "C:\\Users\\ramaz\\.gradle\\caches\\9.0.0\\transforms\\f97a0c8835e876dfb08e8efd6d33fd2f\\transformed\\react-android-0.83.1-debug\\prefab\\modules\\jsi\\libs\\android.armeabi-v7a\\libjsi.so",
         "C:\\Users\\ramaz\\.gradle\\caches\\9.0.0\\transforms\\f97a0c8835e876dfb08e8efd6d33fd2f\\transformed\\react-android-0.83.1-debug\\prefab\\modules\\reactnative\\libs\\android.armeabi-v7a\\libreactnative.so"
       ]
+    },
+    "react_codegen_RNCWebViewSpec::@eb48929f9f7453740a6c": {
+      "toolchain": "toolchain",
+      "abi": "armeabi-v7a",
+      "artifactName": "react_codegen_RNCWebViewSpec"
     },
     "react_codegen_RNImagePickerSpec::@f66ee9a2efecfb28bee4": {
       "toolchain": "toolchain",

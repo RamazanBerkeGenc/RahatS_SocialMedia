@@ -11,12 +11,13 @@ import StudentDashboard from '../screens/StudentDashboard';
 import FeedScreen from '../screens/FeedScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import PostDetailScreen from '../screens/PostDetailScreen'; // YENİ EKLENDİ
+import PostDetailScreen from '../screens/PostDetailScreen';
+import VideoPlayerScreen from '../screens/VideoPlayerScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// --- SOSYAL STACK ---
+// --- SOSYAL STACK (Sosyal Akış ve Detay Gezintisi) ---
 function SocialStack({ route }) {
   const { userId, role } = route.params || {};
 
@@ -33,13 +34,12 @@ function SocialStack({ route }) {
         component={CreatePostScreen} 
         options={{ title: 'Yeni Paylaşım' }}
       />
-      {/* X Tarzı Gönderi Detay Sayfası */}
       <Stack.Screen 
         name="PostDetail" 
         component={PostDetailScreen} 
         options={{ title: 'Gönderi' }} 
       />
-      {/* Profil Gezintisi */}
+      {/* Diğer kullanıcıların profiline gitmek için */}
       <Stack.Screen 
         name="Profil" 
         component={ProfileScreen} 
@@ -50,7 +50,7 @@ function SocialStack({ route }) {
   );
 }
 
-// --- ANA TAB NAVIGATOR ---
+// --- ANA TAB NAVIGATOR (Alt Menü) ---
 function MainTabs({ route }) {
   const { role, userId } = route.params || {}; 
 
@@ -69,14 +69,14 @@ function MainTabs({ route }) {
         headerShown: false,
       })}
     >
-      {/* 1. SOSYAL STACK */}
+      {/* 1. SOSYAL SEKME */}
       <Tab.Screen 
         name="Sosyal" 
         component={SocialStack} 
         initialParams={{ userId, role }} 
       />
       
-      {/* 2. AKADEMİK DASHBOARD */}
+      {/* 2. AKADEMİK SEKME (Öğretmen/Öğrenci ayrımı burada yapılır) */}
       <Tab.Screen name="Akademik">
         {(props) => role === 'teacher' 
           ? <TeacherDashboard {...props} route={{ params: { teacherId: userId } }} /> 
@@ -84,16 +84,16 @@ function MainTabs({ route }) {
         }
       </Tab.Screen>
       
-      {/* 3. KENDİ PROFİLİM */}
+      {/* 3. KENDİ PROFİLİM SEKMESİ */}
       <Tab.Screen name="Profilim">
         {(props) => (
           <ProfileScreen 
             {...props} 
             route={{ 
               params: { 
-                userId: userId, 
+                userId: userId, // Profil sahibi (kendisi)
                 role: role, 
-                currentUserId: userId, 
+                currentUserId: userId, // Giriş yapan (kendisi)
                 currentRole: role 
               } 
             }} 
@@ -104,13 +104,28 @@ function MainTabs({ route }) {
   );
 }
 
-// --- ANA ROOT NAVIGATOR ---
+// --- ANA ROOT NAVIGATOR (En Dış Katman) ---
 export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Main" component={MainTabs} />
+      
+      {/* Video Oynatıcı: Buraya eklendi çünkü video açıldığında 
+          alttaki sekmelerin (Tab Bar) gizlenmesini istiyoruz. 
+      */}
+      <Stack.Screen 
+        name="VideoPlayer" 
+        component={VideoPlayerScreen} 
+        options={{ 
+          headerShown: true, 
+          title: 'Ders Videosu',
+          headerTintColor: '#007bff',
+          headerBackTitle: 'Geri',
+          headerStyle: { elevation: 0, shadowOpacity: 0 } // Temiz görünüm
+        }} 
+      />
     </Stack.Navigator>
   );
 }

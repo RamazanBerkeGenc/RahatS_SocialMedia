@@ -49,6 +49,7 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/x86/safeareacontext_autolinked_build/cmake_install.cmake")
   include("C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/x86/rnscreens_autolinked_build/cmake_install.cmake")
   include("C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/x86/RNVectorIconsSpec_autolinked_build/cmake_install.cmake")
+  include("C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/x86/RNCWebViewSpec_autolinked_build/cmake_install.cmake")
 
 endif()
 

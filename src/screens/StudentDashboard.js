@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, ActivityIndicator, 
-  RefreshControl, TouchableOpacity, ScrollView, Linking, Modal, Alert 
+  RefreshControl, TouchableOpacity, ScrollView, Modal, Alert 
 } from 'react-native';
 import apiClient from '../api/apiClient';
 
 const StudentDashboard = ({ route, navigation }) => {
-  // DÜZELTME: AppNavigator'dan gelen parametreyi güvenli bir şekilde alıyoruz
   const { studentId } = route.params || {};
   
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Video Modal State'leri
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [selectedLessonVideos, setSelectedLessonVideos] = useState([]);
   const [selectedLessonName, setSelectedLessonName] = useState('');
@@ -54,9 +52,16 @@ const StudentDashboard = ({ route, navigation }) => {
     }
   };
 
-  const handleWatch = (url) => {
-    if (url) {
-      Linking.openURL(url).catch(() => Alert.alert("Hata", "Bağlantı açılamadı."));
+  // --- KRİTİK GÜNCELLEME: VideoPlayer Ekranına Yönlendirme ---
+  const handleWatch = (item) => {
+    if (item.icerik) {
+      setVideoModalVisible(false); // Modalı kapat
+      navigation.navigate('VideoPlayer', {
+        materialId: item.id,
+        userId: studentId,
+        videoUrl: item.icerik,
+        title: item.baslik
+      });
     }
   };
 
@@ -111,7 +116,6 @@ const StudentDashboard = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header - Artık Tab Navigator içinde olduğu için padding değerlerini optimize ettik */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
@@ -147,7 +151,6 @@ const StudentDashboard = ({ route, navigation }) => {
         </ScrollView>
       )}
 
-      {/* Video Önerileri Modalı */}
       <Modal animationType="slide" transparent={true} visible={videoModalVisible} onRequestClose={() => setVideoModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.videoModalContent}>
@@ -159,15 +162,15 @@ const StudentDashboard = ({ route, navigation }) => {
               data={selectedLessonVideos}
               keyExtractor={item => item.id.toString()}
               renderItem={({item}) => (
-                <TouchableOpacity style={styles.videoListCard} onPress={() => handleWatch(item.icerik)}>
+                <TouchableOpacity style={styles.videoListCard} onPress={() => handleWatch(item)}>
                   <View style={styles.videoIconBox}>
-                    <Text style={{fontSize: 20}}>{item.tip === 'url' ? '🔗' : '📺'}</Text>
+                    <Text style={{fontSize: 20}}>{item.tip === 'url' || item.icerik.includes('youtube') ? '🔗' : '📺'}</Text>
                   </View>
                   <View style={{flex: 1}}>
                     <Text style={styles.videoListTitle}>{item.baslik}</Text>
                     <Text style={styles.videoListMeta}>İhtiyaç Seviyesi: %{item.hedef_aralik}</Text>
                   </View>
-                  <Text style={styles.watchText}>Hemen İzle</Text>
+                  <Text style={styles.watchText}>Uygulamada İzle</Text>
                 </TouchableOpacity>
               )}
               ListEmptyComponent={<Text style={styles.emptyText}>Şu an uygun bir öneri bulunmuyor.</Text>}

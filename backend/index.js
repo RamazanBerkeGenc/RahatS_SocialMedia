@@ -97,112 +97,13 @@ app.post('/api/auth/login', async (req, res) => {
                     success: true, 
                     user: { id: user.id, name: user.name, lastname: user.lastname, email: decrypt(user.email) } 
                 });
-            } else {
-                res.status(401).json({ success: false, message: "Şifre hatalı!" });
-            }
-        } else {
-            res.status(401).json({ success: false, message: "Kullanıcı bulunamadı!" });
-        }
+            } else res.status(401).json({ success: false, message: "Şifre hatalı!" });
+        } else res.status(401).json({ success: false, message: "Kullanıcı bulunamadı!" });
     });
 });
 
 // ==========================================
-// 2. SOSYAL MEDYA ETKİLEŞİM API'LERİ
-// ==========================================
-
-app.post('/api/social/create-post', async (req, res) => {
-    const { user_id, user_role, content } = req.body;
-    const isSafe = await checkContentSafety(content);
-    if (!isSafe) {
-        return res.status(400).json({ success: false, message: "Paylaşımınız engellendi (AI Filtresi)." });
-    }
-    db.query('CALL sp_CreatePost(?, ?, ?)', [user_id, user_role, content], (err) => {
-        if (err) return res.status(500).json({ success: false });
-        res.json({ success: true, message: "Paylaşımınız yayınlandı!" });
-    });
-});
-
-app.post('/api/social/comment', async (req, res) => {
-    const { post_id, user_id, user_role, comment_text } = req.body;
-    const isSafe = await checkContentSafety(comment_text);
-    if (!isSafe) return res.status(400).json({ success: false, message: "Yorumunuz engellendi." });
-
-    db.query('CALL sp_AddComment(?, ?, ?, ?)', [post_id, user_id, user_role, comment_text], (err) => {
-        if (err) return res.status(500).json({ success: false });
-        res.json({ success: true, message: "Yorumunuz yayınlandı!" });
-    });
-});
-
-app.get('/api/social/comments/:postId', (req, res) => {
-    const query = `
-        SELECT c.*, COALESCE(CONCAT(o.name, ' ', o.lastname), CONCAT(t.name, ' ', t.lastname)) as author_name
-        FROM post_comments c
-        LEFT JOIN ogrenci o ON c.user_id = o.id AND c.user_role = 'student'
-        LEFT JOIN ogretmenler t ON c.user_id = t.id AND c.user_role = 'teacher'
-        WHERE c.post_id = ? ORDER BY c.created_at ASC`;
-    db.query(query, [req.params.postId], (err, results) => {
-        if (err) return res.status(500).json({ message: "Hata!" });
-        res.json(results);
-    });
-});
-
-app.get('/api/social/feed/:userId/:role', (req, res) => {
-    const { userId, role } = req.params;
-    db.query('CALL sp_GetSocialFeed(?, ?)', [userId, role], (err, results) => {
-        if (err) return res.status(500).json({ message: "Hata!" });
-        res.json(results[0]); 
-    });
-});
-
-app.post('/api/social/like', (req, res) => {
-    const { post_id, user_id, user_role } = req.body;
-    db.query('CALL sp_ToggleLike(?, ?, ?)', [post_id, user_id, user_role], (err, results) => {
-        if (err) return res.status(500).json({ success: false });
-        res.json({ success: true, is_liked: results[0][0].is_liked }); 
-    });
-});
-
-// PROFIL ENDPOINT (Düzeltildi: Hem 2 hem 4 parametreyi destekler)
-app.get(['/api/social/profile/:userId/:role', '/api/social/profile/:userId/:role/:currentUserId/:currentRole'], (req, res) => {
-    const { userId, role, currentUserId, currentRole } = req.params;
-    const cID = currentUserId || userId;
-    const cRole = currentRole || role;
-
-    db.query('CALL sp_GetUserProfilePosts(?, ?, ?, ?)', [userId, role, cID, cRole], (err, results) => {
-        if (err) return res.status(500).json({ message: "Hata!" });
-        res.json(results); 
-    });
-});
-
-// Takip Et / Takipten Çık (Düzeltildi)
-app.post('/api/social/follow', (req, res) => {
-    const { follower_id, follower_role, following_id, following_role } = req.body;
-    db.query('CALL sp_ToggleFollow(?, ?, ?, ?)', [follower_id, follower_role, following_id, following_role], (err, results) => {
-        if (err) {
-            console.error("Takip Hatası:", err);
-            return res.status(500).json({ success: false });
-        }
-        // results[0][0].is_following değerini döndür (1 veya 0)
-        res.json({ 
-            success: true, 
-            is_following: results[0][0].is_following 
-        });
-    });
-});
-
-app.delete('/api/social/post/:postId', (req, res) => {
-    const { postId } = req.params;
-    const { userId, role } = req.body;
-    db.query('SELECT user_id, user_role FROM posts WHERE id = ?', [postId], (err, results) => {
-        if (err || results.length === 0) return res.status(404).json({ success: false });
-        if (userId == results[0].user_id && role == results[0].user_role) {
-            db.query("DELETE FROM posts WHERE id = ?", [postId], () => res.json({ success: true }));
-        } else { res.status(403).json({ success: false }); }
-    });
-});
-
-// ==========================================
-// 3. AKADEMİK SİSTEM API'LERİ (TAMAMLANDI)
+// 2. AKADEMİK DASHBOARD SORGULARI (Öğretmen & Öğrenci)
 // ==========================================
 
 app.get('/api/student/dashboard/:studentId', (req, res) => {
@@ -222,7 +123,7 @@ app.get('/api/student/suggested-videos/:studentId/:dersId', (req, res) => {
 app.get('/api/teacher/students/:teacherId', (req, res) => {
     db.query('CALL sp_GetTeacherStudents(?)', [req.params.teacherId], (err, results) => {
         if (err) return res.status(500).json({ message: "Hata!" });
-        res.json(results[0]);
+        res.json(results[0]); 
     });
 });
 
@@ -240,6 +141,65 @@ app.get('/api/teacher/materials/:teacherId', (req, res) => {
     });
 });
 
+// ==========================================
+// 3. İSTATİSTİK VE VİDEO TAKİP (KRİTİK DÜZELTME)
+// ==========================================
+// Materyal İzleme İstatistiklerini Getir (Tablo Hatası Giderildi)
+app.get('/api/teacher/material-stats/:materialId', (req, res) => {
+    const query = `
+        SELECT 
+            o.name, 
+            o.lastname, 
+            IFNULL(s.name, CONCAT(o.sinif_id, '. Sınıf')) as sinif_adi, 
+            vp.is_completed, 
+            vp.last_position, 
+            vp.duration,
+            CASE 
+                WHEN vp.duration > 0 THEN ROUND((vp.last_position / vp.duration) * 100) 
+                ELSE 0 
+            END as watch_percent
+        FROM video_progress vp
+        INNER JOIN ogrenci o ON vp.user_id = o.id
+        LEFT JOIN sinif s ON o.sinif_id = s.id 
+        WHERE vp.material_id = ?`;
+
+    db.query(query, [req.params.materialId], (err, results) => {
+        if (err) {
+            console.error("İstatistik Sorgu Hatası:", err);
+            return res.status(500).json({ message: "Veritabanı hatası!" });
+        }
+        res.json(results);
+    });
+});
+
+app.post('/api/academic/save-progress', (req, res) => {
+    const { user_id, material_id, position, duration } = req.body;
+    if(!duration) return res.json({success: false});
+    const isCompleted = (position / duration) >= 0.9 ? 1 : 0;
+    const query = `
+        INSERT INTO video_progress (user_id, material_id, last_position, duration, is_completed)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+            last_position = VALUES(last_position), 
+            duration = VALUES(duration), 
+            is_completed = VALUES(is_completed)`;
+    db.query(query, [user_id, material_id, position, duration, isCompleted], (err) => {
+        if (err) return res.status(500).json({ success: false });
+        res.json({ success: true });
+    });
+});
+
+app.get('/api/academic/get-progress/:userId/:materialId', (req, res) => {
+    db.query('SELECT last_position FROM video_progress WHERE user_id = ? AND material_id = ?', 
+    [req.params.userId, req.params.materialId], (err, results) => {
+        if (err) return res.status(500).json({ success: false });
+        res.json({ position: results.length > 0 ? results[0].last_position : 0 });
+    });
+});
+
+// ==========================================
+// 4. MATERYAL YÖNETİMİ
+// ==========================================
 app.post('/api/teacher/upload-material', upload.single('video'), (req, res) => {
     const { ogretmen_id, ders_id, sinif_seviyesi, hedef_aralik, tip, baslik, icerik } = req.body;
     let finalContent = tip === 'video' ? `http://10.0.2.2:3000/uploads/videos/${req.file.filename}` : icerik;
@@ -276,8 +236,49 @@ app.delete('/api/teacher/delete-material/:materialId', (req, res) => {
     });
 });
 
+// ==========================================
+// 5. SOSYAL MEDYA (ROTA SIRALAMASI DÜZELTİLDİ)
+// ==========================================
+app.get('/api/social/feed/:userId/:role', (req, res) => {
+    const { userId, role } = req.params;
+    db.query('CALL sp_GetSocialFeed(?, ?)', [userId, role], (err, results) => {
+        if (err) return res.status(500).json({ message: "Hata!" });
+        res.json(results[0]); 
+    });
+});
+
+app.post('/api/social/like', (req, res) => {
+    const { post_id, user_id, user_role } = req.body;
+    db.query('CALL sp_ToggleLike(?, ?, ?)', [post_id, user_id, user_role], (err, results) => {
+        if (err) return res.status(500).json({ success: false });
+        res.json({ success: true, is_liked: results[0][0].is_liked }); 
+    });
+});
+
+app.get('/api/social/profile/:userId/:role/:currentUserId/:currentRole', (req, res) => {
+    const { userId, role, currentUserId, currentRole } = req.params;
+    db.query('CALL sp_GetUserProfilePosts(?, ?, ?, ?)', [userId, role, currentUserId, currentRole], (err, results) => {
+        if (err) return res.status(500).json({ message: "Hata!" });
+        res.json(results); 
+    });
+});
+
+app.get('/api/social/comments/:postId', (req, res) => {
+    const query = `
+        SELECT c.*, COALESCE(CONCAT(o.name, ' ', o.lastname), CONCAT(t.name, ' ', t.lastname)) as author_name
+        FROM post_comments c
+        LEFT JOIN ogrenci o ON c.user_id = o.id AND c.user_role = 'student'
+        LEFT JOIN ogretmenler t ON c.user_id = t.id AND c.user_role = 'teacher'
+        WHERE c.post_id = ? ORDER BY c.created_at ASC`;
+    db.query(query, [req.params.postId], (err, results) => {
+        if (err) return res.status(500).json({ message: "Hata!" });
+        res.json(results);
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 RahatS Aktif: ${PORT}`));
+
 
 // --- VERİ MİGRASYONU (TEK SEFERLİK) ---
 const migrateData = async () => {

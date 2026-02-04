@@ -32,6 +32,11 @@ const TeacherDashboard = ({ route }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [grades, setGrades] = useState({ s1: '', s2: '', sz1: '', sz2: '' });
 
+  // İstatistik Modal State'leri
+  const [statsModalVisible, setStatsModalVisible] = useState(false);
+  const [materialStats, setMaterialStats] = useState([]);
+  const [selectedMaterialTitle, setSelectedMaterialTitle] = useState('');
+
   // Materyal Düzenleme State'leri
   const [isEditing, setIsEditing] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState(null);
@@ -69,6 +74,18 @@ const TeacherDashboard = ({ route }) => {
     } finally { 
       setLoading(false); 
       setRefreshing(false);
+    }
+  };
+
+  // --- İZLEME İSTATİSTİKLERİNİ GETİR ---
+  const fetchMaterialStats = async (material) => {
+    try {
+      setSelectedMaterialTitle(material.baslik);
+      const res = await apiClient.get(`/teacher/material-stats/${material.id}`);
+      setMaterialStats(res.data);
+      setStatsModalVisible(true);
+    } catch (error) {
+      Alert.alert("Hata", "İstatistikler yüklenemedi.");
     }
   };
 
@@ -225,6 +242,7 @@ const TeacherDashboard = ({ route }) => {
                 <Text style={styles.matMeta}>{item.sinif_seviyesi}. Sınıf | %{item.hedef_aralik}</Text>
               </View>
               <View style={styles.actionRow}>
+                <TouchableOpacity onPress={() => fetchMaterialStats(item)} style={{marginRight: 15}}><Icon name="stats-chart-outline" size={22} color="#50c878" /></TouchableOpacity>
                 <TouchableOpacity onPress={() => openEditMode(item)} style={{marginRight: 15}}><Icon name="create-outline" size={22} color="#4a90e2" /></TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDeleteMaterial(item.id)}><Icon name="trash-outline" size={22} color="#e84118" /></TouchableOpacity>
               </View>
@@ -271,6 +289,43 @@ const TeacherDashboard = ({ route }) => {
             </View>
         </ScrollView>
       )}
+
+      {/* İZLEME İSTATİSTİK MODALI */}
+      <Modal visible={statsModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.statsModalContent}>
+            <Text style={styles.modalTitle}>İzleme Raporu</Text>
+            <Text style={styles.modalSub}>{selectedMaterialTitle}</Text>
+            
+            <FlatList 
+              data={materialStats}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <View style={styles.statsRow}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.studentNameText}>
+                        {item.name} {item.lastname} 
+                        <Text style={{color: '#7f8c8d', fontSize: 12}}> ({item.sinif_adi || 'Sınıf Belirsiz'})</Text>
+                    </Text>
+                    
+                    <View style={styles.progressBarContainer}>
+                      <View style={[
+                        styles.progressBarFill, 
+                        { width: `${item.watch_percent}%`, backgroundColor: item.is_completed ? '#50c878' : '#f1c40f' }
+                      ]} />
+                    </View>
+                  </View>
+                  <Text style={styles.percentText}>%{item.watch_percent}</Text>
+                </View>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>Henüz kimse izlemedi.</Text>}
+              style={{maxHeight: 400, marginVertical: 20}}
+            />
+
+            <CustomButton title="Kapat" onPress={() => setStatsModalVisible(false)} color="#4a90e2" />
+          </View>
+        </View>
+      </Modal>
 
       {/* NOT GİRİŞ MODALI */}
       <Modal visible={gradeModalVisible} animationType="fade" transparent={true}>
@@ -331,10 +386,17 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   gradeModalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 25, elevation: 5 },
+  statsModalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 25, elevation: 5, width: '90%' },
   modalTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', color: '#2d3436' },
   modalSub: { fontSize: 14, color: '#7f8c8d', textAlign: 'center', marginBottom: 20 },
   gradeInputRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  cancelBtn: { alignItems: 'center', marginTop: 15, padding: 5 }
+  cancelBtn: { alignItems: 'center', marginTop: 15, padding: 5 },
+  statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f1f2f6' },
+  studentNameText: { fontSize: 14, fontWeight: '600', color: '#2d3436', marginBottom: 5 },
+  progressBarContainer: { height: 8, backgroundColor: '#f1f2f6', borderRadius: 4, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 4 },
+  percentText: { marginLeft: 15, fontSize: 14, fontWeight: 'bold', color: '#4a90e2', width: 45, textAlign: 'right' },
+  emptyText: { textAlign: 'center', color: '#7f8c8d', fontStyle: 'italic' }
 });
 
 export default TeacherDashboard;
