@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, 
-  ActivityIndicator, RefreshControl 
+  ActivityIndicator, RefreshControl, Image, Platform 
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { launchImageLibrary } from 'react-native-image-picker'; // RESİM SEÇİCİ EKLENDİ
 import apiClient from '../api/apiClient';
 import PostCard from '../components/PostCard';
 
@@ -12,20 +13,24 @@ const ProfileScreen = ({ route, navigation }) => {
   const { userId, role, currentUserId, currentRole } = route.params || {};
   const isFocused = useIsFocused();
   
+  // --- STATE ---
   const [userPosts, setUserPosts] = useState([]);
   const [fullName, setFullName] = useState('');
   const [stats, setStats] = useState({ followers: 0, following: 0 });
+  const [profileImage, setProfileImage] = useState(null); // Profil resmi state'i
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [uploadingInfo, setUploadingInfo] = useState(false); // Yükleme durumu
 
   const isOwnProfile = userId === currentUserId && role === currentRole;
 
+  // --- VERİ ÇEKME ---
   const fetchProfileData = useCallback(async (isRefreshing = false) => {
     try {
       if (!isRefreshing && userPosts.length === 0) setLoading(true);
       
-      // 1. İSİM ÇEKME MANTIĞI
+      // 1. İsim Çekme (Eski yöntem korundu, yedek olarak)
       try {
         if (role === 'student') {
           const studentRes = await apiClient.get(`/student/dashboard/${userId}`);
@@ -39,20 +44,25 @@ const ProfileScreen = ({ route, navigation }) => {
           }
         }
       } catch (err) {
-        console.log("İsim çekme hatası:", err);
+        console.log("İsim çekme hatası (Önemsiz):", err);
       }
 
-      // 2. PROFİL İSTATİSTİKLERİ VE POSTLAR
+      // 2. Profil İstatistikleri, Resim ve Postlar
       const res = await apiClient.get(`/social/profile/${userId}/${role}/${currentUserId}/${currentRole}`);
       
       if (res.data && res.data[0]) {
-        const profileStats = res.data[0][0];
+        const profileStats = res.data[0][0]; // İlk sorgunun ilk satırı
         setStats({
-          followers: profileStats?.followers_count || 0,
-          following: profileStats?.following_count || 0
+          followers: profileStats?.followers || profileStats?.followers_count || 0,
+          following: profileStats?.following || profileStats?.following_count || 0
         });
         setIsFollowing(profileStats?.is_following === 1);
-        setUserPosts(res.data[1] || []);
+        setProfileImage(profileStats?.profile_image); // Resmi kaydet
+        
+        // Eğer SP'den isim geliyorsa onu kullan (Daha hızlı)
+        if(profileStats?.name) setFullName(`${profileStats.name} ${profileStats.lastname}`);
+        
+        setUserPosts(res.data[1] || []); // İkinci sorgu postlar
       }
 
     } catch (error) {
@@ -70,7 +80,53 @@ const ProfileScreen = ({ route, navigation }) => {
     }
   }, [userId, isFocused, fetchProfileData]);
 
-  // --- BEĞENİ SİSTEMİ (FeedScreen Mimarisi ile Aynı) ---
+  // --- RESİM YÜKLEME FONKSİYONLARI ---
+  const handleChoosePhoto = () => {
+    const options = {
+      mediaType: 'photo',
+      quality: 0.8,
+      selectionLimit: 1,
+    };
+
+    launchImageLibrary(options, async (response) => {
+      if (response.didCancel) return;
+      if (response.errorCode) {
+        Alert.alert("Hata", "Fotoğraf seçilemedi: " + response.errorMessage);
+        return;
+      }
+      
+      const asset = response.assets[0];
+      await uploadPhoto(asset);
+    });
+  };
+
+  const uploadPhoto = async (asset) => {
+    setUploadingInfo(true);
+    const formData = new FormData();
+    formData.append('photo', {
+      uri: Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri,
+      type: asset.type,
+      name: asset.fileName || 'profile_image.jpg',
+    });
+
+    try {
+      const response = await apiClient.post('/user/upload-profile-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (response.data.success) {
+        Alert.alert("Başarılı", "Profil fotoğrafın güncellendi!");
+        setProfileImage(response.data.imagePath); // Yeni resmi hemen göster
+      }
+    } catch (error) {
+      console.error("Upload Hatası:", error);
+      Alert.alert("Hata", "Fotoğraf yüklenirken bir sorun oluştu.");
+    } finally {
+      setUploadingInfo(false);
+    }
+  };
+
+  // --- BEĞENİ SİSTEMİ ---
   const handlePostLike = async (postId) => {
     const originalPosts = [...userPosts];
     const updatedPosts = userPosts.map(post => {
@@ -88,11 +144,8 @@ const ProfileScreen = ({ route, navigation }) => {
 
     try {
       const response = await apiClient.post('/social/like', {
-        post_id: postId,
-        user_id: currentUserId,
-        user_role: currentRole
+        post_id: postId, user_id: currentUserId, user_role: currentRole
       });
-
       if (response.data.success) {
         setUserPosts(currentPosts => currentPosts.map(p => {
           if (p.id === postId) return { ...p, is_liked: response.data.is_liked };
@@ -106,12 +159,11 @@ const ProfileScreen = ({ route, navigation }) => {
     }
   };
 
-  // --- TAKİP SİSTEMİ (Düzeltilmiş ve Senkronize) ---
+  // --- TAKİP SİSTEMİ ---
   const handleFollowToggle = async () => {
     const previousState = isFollowing;
     const previousFollowers = stats.followers;
 
-    // 1. İyimser Güncelleme
     setIsFollowing(!previousState);
     setStats(prev => ({
       ...prev,
@@ -119,22 +171,17 @@ const ProfileScreen = ({ route, navigation }) => {
     }));
 
     try {
-      // 2. API İsteği
       const response = await apiClient.post('/social/follow', {
-        follower_id: currentUserId,
-        follower_role: currentRole,
-        following_id: userId,
-        following_role: role
+        follower_id: currentUserId, follower_role: currentRole,
+        following_id: userId, following_role: role
       });
 
-      // 3. Backend verisi ile kesin doğrulama
       if (response.data.success) {
         setIsFollowing(response.data.is_following === 1);
       } else {
         throw new Error();
       }
     } catch (error) {
-      // Hata durumunda eski haline döndür
       setIsFollowing(previousState);
       setStats(prev => ({ ...prev, followers: previousFollowers }));
       Alert.alert("Hata", "Takip işlemi gerçekleştirilemedi.");
@@ -152,13 +199,6 @@ const ProfileScreen = ({ route, navigation }) => {
     }
   };
 
-  const navigateToDetail = (postItem) => {
-    navigation.navigate('Sosyal', {
-      screen: 'PostDetail',
-      params: { post: postItem, userId: currentUserId, role: currentRole }
-    });
-  };
-
   const handleLogout = () => {
     Alert.alert("Çıkış", "Emin misiniz?", [
       { text: "Vazgeç" },
@@ -166,6 +206,7 @@ const ProfileScreen = ({ route, navigation }) => {
     ]);
   };
 
+  // --- HEADER RENDER ---
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       {isOwnProfile && (
@@ -174,18 +215,44 @@ const ProfileScreen = ({ route, navigation }) => {
           <Text style={styles.logoutText}>Çıkış</Text>
         </TouchableOpacity>
       )}
+      
       <View style={styles.profileInfo}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarLetter}>{fullName?.charAt(0).toUpperCase() || "?"}</Text>
+        {/* --- PROFİL RESMİ ALANI --- */}
+        <View style={styles.imageWrapper}>
+          {profileImage ? (
+            <Image source={{ uri: profileImage }} style={styles.profileImage} />
+          ) : (
+            <View style={[styles.profileImage, styles.placeholderImage]}>
+              <Text style={styles.avatarLetter}>{fullName?.charAt(0).toUpperCase() || "?"}</Text>
+            </View>
+          )}
+
+          {/* Kamera Butonu (Sadece Kendi Profilinde) */}
+          {isOwnProfile && (
+            <TouchableOpacity 
+              style={styles.cameraButton} 
+              onPress={handleChoosePhoto}
+              disabled={uploadingInfo}
+            >
+              {uploadingInfo ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Icon name="camera" size={18} color="#fff" />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
+
         <Text style={styles.userName} numberOfLines={1}>{fullName || "Yükleniyor..."}</Text>
         <Text style={styles.userRoleText}>{role === 'teacher' ? '👨‍🏫 Yetkili Eğitmen' : '🎓 RahatS Öğrencisi'}</Text>
       </View>
+
       <View style={styles.statsBar}>
         <View style={styles.statBox}><Text style={styles.statCount}>{userPosts.length}</Text><Text style={styles.statLabel}>Gönderi</Text></View>
         <View style={[styles.statBox, { marginHorizontal: 40 }]}><Text style={styles.statCount}>{stats.followers}</Text><Text style={styles.statLabel}>Takipçi</Text></View>
         <View style={styles.statBox}><Text style={styles.statCount}>{stats.following}</Text><Text style={styles.statLabel}>Takip</Text></View>
       </View>
+
       {!isOwnProfile && (
         <TouchableOpacity 
           style={[styles.followBtn, isFollowing && styles.unfollowBtn]} 
@@ -215,7 +282,7 @@ const ProfileScreen = ({ route, navigation }) => {
               currentUserId={currentUserId}
               currentRole={currentRole}
               onLike={() => handlePostLike(item.id)}
-              onComment={() => navigateToDetail(item)}
+              onComment={() => navigation.navigate('PostDetail', { post: item, userId: currentUserId, role: currentRole })}
               onDelete={handleDeletePost}
               onProfilePress={(id, r) => {
                 if (id !== userId || r !== role) {
@@ -243,11 +310,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f2f5' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerContainer: { backgroundColor: '#fff', padding: 25, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 4, alignItems: 'center' },
-  logoutBtn: { position: 'absolute', top: 20, right: 20, flexDirection: 'row', alignItems: 'center' },
+  logoutBtn: { position: 'absolute', top: 20, right: 20, flexDirection: 'row', alignItems: 'center', zIndex: 10 },
   logoutText: { color: '#e84118', marginLeft: 4, fontWeight: 'bold', fontSize: 13 },
   profileInfo: { alignItems: 'center', marginTop: 10 },
-  avatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#007bff', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 4, borderColor: '#e3f2fd' },
+  
+  // --- YENİ RESİM STİLLERİ ---
+  imageWrapper: { position: 'relative', marginBottom: 12 },
+  profileImage: { width: 100, height: 100, borderRadius: 50, borderWidth: 4, borderColor: '#e3f2fd' },
+  placeholderImage: { backgroundColor: '#007bff', justifyContent: 'center', alignItems: 'center' },
   avatarLetter: { fontSize: 40, color: '#fff', fontWeight: 'bold' },
+  cameraButton: {
+    position: 'absolute', bottom: 0, right: 0,
+    backgroundColor: '#007bff', width: 34, height: 34, borderRadius: 17,
+    justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#fff'
+  },
+  // ---------------------------
+
   userName: { fontSize: 20, fontWeight: 'bold', color: '#2d3436' },
   userRoleText: { fontSize: 13, color: '#7f8c8d', marginTop: 4 },
   statsBar: { flexDirection: 'row', justifyContent: 'center', marginTop: 25, borderTopWidth: 1, borderTopColor: '#f1f2f6', paddingTop: 20, width: '100%' },

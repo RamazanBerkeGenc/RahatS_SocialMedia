@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Alert, KeyboardAvoidingView, 
   Platform, TouchableOpacity 
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // [YENİ] Hafıza kütüphanesi
 import CustomButton from '../components/CustomButton';
 import CustomInput from '../components/CustomInput';
 import apiClient from '../api/apiClient';
@@ -31,17 +32,23 @@ const LoginScreen = ({ route, navigation }) => {
       });
 
       if (response.data.success) {
-        // --- KRİTİK DEĞİŞİKLİK BURADA ---
-        // Artık doğrudan Dashboard'a değil, 'Main' (Tab Navigator) ekranına gidiyoruz.
-        // Dashboard ekranı, Main içindeki mantığa göre (öğrenci/öğretmen) otomatik açılacak.
-        
+        // --- KRİTİK GÜNCELLEME: TOKEN KAYDI ---
+        const { token, user } = response.data;
+
+        // 1. Token'ı ve temel bilgileri telefon hafızasına kaydediyoruz
+        // apiClient.js her istekte 'userToken'ı okuyup Header'a ekleyecek.
+        await AsyncStorage.setItem('userToken', token);
+        await AsyncStorage.setItem('userId', user.id.toString());
+        await AsyncStorage.setItem('userRole', role);
+
+        // 2. Ana ekrana (MainTabs) yönlendiriyoruz
         navigation.reset({
           index: 0,
           routes: [{ 
             name: 'Main', 
             params: { 
               role: role, 
-              userId: response.data.user.id 
+              userId: user.id 
             } 
           }],
         });

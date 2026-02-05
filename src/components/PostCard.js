@@ -36,9 +36,19 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
           style={styles.authorInfo} 
           onPress={() => onProfilePress(post.user_id, post.user_role)}
         >
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
-          </View>
+          {/* --- [YENİ] PROFİL RESMİ KONTROLÜ --- */}
+          {post.author_image ? (
+            <Image 
+              source={{ uri: post.author_image }} 
+              style={styles.avatarImage} 
+            />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          {/* ------------------------------------ */}
+
           <View>
             <Text style={styles.author}>{displayName}</Text>
             <Text style={styles.role}>
@@ -60,7 +70,7 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
       {/* İçerik */}
       <Text style={styles.content}>{post.content}</Text>
       
-      {/* Görsel */}
+      {/* Post Görseli (Eğer varsa) */}
       {post.image_url && (
         <Image source={{ uri: post.image_url }} style={styles.postImage} resizeMode="cover" />
       )}
@@ -117,6 +127,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center' 
   },
+  // --- YENİ RESİM STİLİ ---
+  avatarImage: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#eee',
+    backgroundColor: '#f1f2f6'
+  },
+  // ------------------------
   avatarPlaceholder: {
     width: 42,
     height: 42,

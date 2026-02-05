@@ -39,12 +39,14 @@ function SocialStack({ route }) {
         component={PostDetailScreen} 
         options={{ title: 'Gönderi' }} 
       />
-      {/* Diğer kullanıcıların profiline gitmek için */}
+      
+      {/* --- KRİTİK EKLEME: BAŞKASININ PROFİLİ --- */}
+      {/* FeedScreen'den 'UserProfile' adıyla buraya yönlendirme yapıyoruz. */}
       <Stack.Screen 
-        name="Profil" 
+        name="UserProfile" 
         component={ProfileScreen} 
-        initialParams={{ currentUserId: userId, currentRole: role }} 
-        options={{ title: 'Profil' }}
+        // initialParams vermiyoruz, çünkü tıklanan kişiye göre değişecek
+        options={{ title: 'Kullanıcı Profili' }}
       />
     </Stack.Navigator>
   );
@@ -84,7 +86,7 @@ function MainTabs({ route }) {
         }
       </Tab.Screen>
       
-      {/* 3. KENDİ PROFİLİM SEKMESİ */}
+      {/* 3. KENDİ PROFİLİM SEKMESİ (Sabit: Giriş Yapan Kişi) */}
       <Tab.Screen name="Profilim">
         {(props) => (
           <ProfileScreen 

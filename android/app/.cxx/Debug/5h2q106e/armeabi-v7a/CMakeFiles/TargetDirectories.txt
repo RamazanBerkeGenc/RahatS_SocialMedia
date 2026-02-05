@@ -1,6 +1,9 @@
 C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/CMakeFiles/appmodules.dir
 C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/CMakeFiles/edit_cache.dir
 C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/CMakeFiles/rebuild_cache.dir
+C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/rnasyncstorage_autolinked_build/CMakeFiles/react_codegen_rnasyncstorage.dir
+C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/rnasyncstorage_autolinked_build/CMakeFiles/edit_cache.dir
+C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/rnasyncstorage_autolinked_build/CMakeFiles/rebuild_cache.dir
 C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/rngesturehandler_codegen_autolinked_build/CMakeFiles/react_codegen_rngesturehandler_codegen.dir
 C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/rngesturehandler_codegen_autolinked_build/CMakeFiles/edit_cache.dir
 C:/Users/ramaz/Documents/GitHub/RahatS_SocialMedia/android/app/.cxx/Debug/5h2q106e/armeabi-v7a/rngesturehandler_codegen_autolinked_build/CMakeFiles/rebuild_cache.dir
