@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { launchImageLibrary } from 'react-native-image-picker'; // RESİM SEÇİCİ EKLENDİ
+import { launchImageLibrary } from 'react-native-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // [YENİ] Çıkış için eklendi
 import apiClient from '../api/apiClient';
 import PostCard from '../components/PostCard';
 
@@ -17,11 +18,11 @@ const ProfileScreen = ({ route, navigation }) => {
   const [userPosts, setUserPosts] = useState([]);
   const [fullName, setFullName] = useState('');
   const [stats, setStats] = useState({ followers: 0, following: 0 });
-  const [profileImage, setProfileImage] = useState(null); // Profil resmi state'i
+  const [profileImage, setProfileImage] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [uploadingInfo, setUploadingInfo] = useState(false); // Yükleme durumu
+  const [uploadingInfo, setUploadingInfo] = useState(false);
 
   const isOwnProfile = userId === currentUserId && role === currentRole;
 
@@ -30,7 +31,7 @@ const ProfileScreen = ({ route, navigation }) => {
     try {
       if (!isRefreshing && userPosts.length === 0) setLoading(true);
       
-      // 1. İsim Çekme (Eski yöntem korundu, yedek olarak)
+      // 1. İsim Çekme (Yedek Yöntem)
       try {
         if (role === 'student') {
           const studentRes = await apiClient.get(`/student/dashboard/${userId}`);
@@ -44,25 +45,25 @@ const ProfileScreen = ({ route, navigation }) => {
           }
         }
       } catch (err) {
-        console.log("İsim çekme hatası (Önemsiz):", err);
+        console.log("Yedek isim çekme hatası (Önemsiz):", err);
       }
 
       // 2. Profil İstatistikleri, Resim ve Postlar
       const res = await apiClient.get(`/social/profile/${userId}/${role}/${currentUserId}/${currentRole}`);
       
       if (res.data && res.data[0]) {
-        const profileStats = res.data[0][0]; // İlk sorgunun ilk satırı
+        const profileStats = res.data[0][0]; // İlk sorgu sonucu
         setStats({
-          followers: profileStats?.followers || profileStats?.followers_count || 0,
-          following: profileStats?.following || profileStats?.following_count || 0
+          followers: profileStats?.followers || 0,
+          following: profileStats?.following || 0
         });
         setIsFollowing(profileStats?.is_following === 1);
-        setProfileImage(profileStats?.profile_image); // Resmi kaydet
+        setProfileImage(profileStats?.profile_image);
         
-        // Eğer SP'den isim geliyorsa onu kullan (Daha hızlı)
+        // Veritabanından gelen güncel isim varsa onu kullan
         if(profileStats?.name) setFullName(`${profileStats.name} ${profileStats.lastname}`);
         
-        setUserPosts(res.data[1] || []); // İkinci sorgu postlar
+        setUserPosts(res.data[1] || []); // İkinci sorgu (postlar)
       }
 
     } catch (error) {
@@ -80,7 +81,7 @@ const ProfileScreen = ({ route, navigation }) => {
     }
   }, [userId, isFocused, fetchProfileData]);
 
-  // --- RESİM YÜKLEME FONKSİYONLARI ---
+  // --- RESİM YÜKLEME ---
   const handleChoosePhoto = () => {
     const options = {
       mediaType: 'photo',
@@ -94,7 +95,6 @@ const ProfileScreen = ({ route, navigation }) => {
         Alert.alert("Hata", "Fotoğraf seçilemedi: " + response.errorMessage);
         return;
       }
-      
       const asset = response.assets[0];
       await uploadPhoto(asset);
     });
@@ -116,7 +116,7 @@ const ProfileScreen = ({ route, navigation }) => {
 
       if (response.data.success) {
         Alert.alert("Başarılı", "Profil fotoğrafın güncellendi!");
-        setProfileImage(response.data.imagePath); // Yeni resmi hemen göster
+        setProfileImage(response.data.imagePath);
       }
     } catch (error) {
       console.error("Upload Hatası:", error);
@@ -162,12 +162,13 @@ const ProfileScreen = ({ route, navigation }) => {
   // --- TAKİP SİSTEMİ ---
   const handleFollowToggle = async () => {
     const previousState = isFollowing;
-    const previousFollowers = stats.followers;
+    // const previousFollowers = stats.followers; // Takipçi sayısını anlık değiştirmek istersen açabilirsin
 
     setIsFollowing(!previousState);
+    // İyimser güncelleme:
     setStats(prev => ({
-      ...prev,
-      followers: previousState ? Math.max(0, prev.followers - 1) : prev.followers + 1
+        ...prev,
+        followers: previousState ? Math.max(0, prev.followers - 1) : prev.followers + 1
     }));
 
     try {
@@ -183,7 +184,8 @@ const ProfileScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       setIsFollowing(previousState);
-      setStats(prev => ({ ...prev, followers: previousFollowers }));
+      // setStats(prev => ({ ...prev, followers: previousFollowers }));
+      fetchProfileData(); // Garanti olsun diye veriyi tazele
       Alert.alert("Hata", "Takip işlemi gerçekleştirilemedi.");
     }
   };
@@ -199,14 +201,30 @@ const ProfileScreen = ({ route, navigation }) => {
     }
   };
 
+  // --- [GÜNCELLENDİ] ÇIKIŞ YAPMA ---
   const handleLogout = () => {
     Alert.alert("Çıkış", "Emin misiniz?", [
       { text: "Vazgeç" },
-      { text: "Evet", onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] }) }
+      { 
+        text: "Evet", 
+        onPress: async () => {
+          try {
+            // Token ve kullanıcı bilgilerini telefondan sil
+            await AsyncStorage.removeItem('userToken');
+            await AsyncStorage.removeItem('userId');
+            await AsyncStorage.removeItem('userRole');
+            
+            // Login ekranına gönder
+            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+          } catch (e) {
+            console.error("Çıkış Hatası:", e);
+          }
+        } 
+      }
     ]);
   };
 
-  // --- HEADER RENDER ---
+  // --- GÖRÜNÜM (HEADER) ---
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       {isOwnProfile && (
@@ -217,7 +235,6 @@ const ProfileScreen = ({ route, navigation }) => {
       )}
       
       <View style={styles.profileInfo}>
-        {/* --- PROFİL RESMİ ALANI --- */}
         <View style={styles.imageWrapper}>
           {profileImage ? (
             <Image source={{ uri: profileImage }} style={styles.profileImage} />
@@ -227,7 +244,6 @@ const ProfileScreen = ({ route, navigation }) => {
             </View>
           )}
 
-          {/* Kamera Butonu (Sadece Kendi Profilinde) */}
           {isOwnProfile && (
             <TouchableOpacity 
               style={styles.cameraButton} 
@@ -244,7 +260,9 @@ const ProfileScreen = ({ route, navigation }) => {
         </View>
 
         <Text style={styles.userName} numberOfLines={1}>{fullName || "Yükleniyor..."}</Text>
-        <Text style={styles.userRoleText}>{role === 'teacher' ? '👨‍🏫 Yetkili Eğitmen' : '🎓 RahatS Öğrencisi'}</Text>
+        <Text style={styles.userRoleText}>
+            {role === 'teacher' ? '👨‍🏫 Yetkili Eğitmen' : '🎓 RahatS Öğrencisi'}
+        </Text>
       </View>
 
       <View style={styles.statsBar}>
@@ -286,7 +304,8 @@ const ProfileScreen = ({ route, navigation }) => {
               onDelete={handleDeletePost}
               onProfilePress={(id, r) => {
                 if (id !== userId || r !== role) {
-                  navigation.push('Profil', { userId: id, role: r });
+                  // Kendi profilimiz değilse git, yoksa zaten buradayız
+                  navigation.push('UserProfile', { userId: id, role: r, currentUserId, currentRole });
                 }
               }} 
             />
@@ -314,7 +333,6 @@ const styles = StyleSheet.create({
   logoutText: { color: '#e84118', marginLeft: 4, fontWeight: 'bold', fontSize: 13 },
   profileInfo: { alignItems: 'center', marginTop: 10 },
   
-  // --- YENİ RESİM STİLLERİ ---
   imageWrapper: { position: 'relative', marginBottom: 12 },
   profileImage: { width: 100, height: 100, borderRadius: 50, borderWidth: 4, borderColor: '#e3f2fd' },
   placeholderImage: { backgroundColor: '#007bff', justifyContent: 'center', alignItems: 'center' },
@@ -324,7 +342,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#007bff', width: 34, height: 34, borderRadius: 17,
     justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#fff'
   },
-  // ---------------------------
 
   userName: { fontSize: 20, fontWeight: 'bold', color: '#2d3436' },
   userRoleText: { fontSize: 13, color: '#7f8c8d', marginTop: 4 },

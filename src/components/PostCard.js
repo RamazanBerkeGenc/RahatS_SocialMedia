@@ -7,11 +7,27 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
   // Beğeni durumu kontrolü
   const isLiked = post.is_liked === 1;
 
-  // Fotoğraftaki isim çıkmama sorununa karşı koruma
-  const displayName = post.author_name || "Kullanıcı";
+  // İsim Gösterimi: İsim ve Soyisimi birleştir, yoksa "Kullanıcı" yaz
+  const displayName = post.author_name 
+    ? `${post.author_name} ${post.author_lastname || ''}`.trim() 
+    : "Kullanıcı";
 
-  // Gönderi sahibi kontrolü: Sadece kendi gönderisinde silme butonu çıkar
+  // Gönderi sahibi kontrolü
   const isOwner = post.user_id == currentUserId && post.user_role == currentRole;
+
+  // [YENİ] Tarih Formatlama Fonksiyonu
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = (now - date) / 1000; // Saniye cinsinden fark
+
+    if (diff < 60) return 'Az önce';
+    if (diff < 3600) return `${Math.floor(diff / 60)} dk önce`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} saat önce`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)} gün önce`;
+    return date.toLocaleDateString('tr-TR'); // Eskiyse tam tarih göster
+  };
 
   const confirmDelete = () => {
     Alert.alert(
@@ -19,45 +35,44 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
       "Bu gönderiyi kalıcı olarak silmek istediğinize emin misiniz?",
       [
         { text: "Vazgeç", style: "cancel" },
-        { 
-          text: "Sil", 
-          style: "destructive", 
-          onPress: () => onDelete(post.id) 
-        }
+        { text: "Sil", style: "destructive", onPress: () => onDelete(post.id) }
       ]
     );
   };
 
   return (
     <View style={styles.card}>
-      {/* Profil Bilgisi - Tıklanabilir */}
+      {/* Header: Profil Bilgisi */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.authorInfo} 
           onPress={() => onProfilePress(post.user_id, post.user_role)}
         >
-          {/* --- [YENİ] PROFİL RESMİ KONTROLÜ --- */}
+          {/* Profil Resmi veya Baş Harf */}
           {post.author_image ? (
-            <Image 
-              source={{ uri: post.author_image }} 
-              style={styles.avatarImage} 
-            />
+            <Image source={{ uri: post.author_image }} style={styles.avatarImage} />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
             </View>
           )}
-          {/* ------------------------------------ */}
 
           <View>
             <Text style={styles.author}>{displayName}</Text>
-            <Text style={styles.role}>
-              {post.user_role === 'teacher' ? '👨‍🏫 Öğretmen' : '🎓 Öğrenci'}
-            </Text>
+            
+            {/* Rol ve Tarih Yan Yana */}
+            <View style={styles.subHeader}>
+              <Text style={styles.role}>
+                {post.user_role === 'teacher' ? '👨‍🏫 Öğretmen' : '🎓 Öğrenci'}
+              </Text>
+              <Text style={styles.dateText}>
+                • {formatDate(post.created_at)}
+              </Text>
+            </View>
           </View>
         </TouchableOpacity>
         
-        {/* SİLME BUTONU: Sadece gönderi sahibi görebilir */}
+        {/* Silme veya Seçenekler Butonu */}
         {isOwner ? (
           <TouchableOpacity onPress={confirmDelete} style={styles.deleteBtn}>
             <Icon name="trash-outline" size={20} color="#ff4757" />
@@ -70,12 +85,12 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
       {/* İçerik */}
       <Text style={styles.content}>{post.content}</Text>
       
-      {/* Post Görseli (Eğer varsa) */}
+      {/* Post Görseli */}
       {post.image_url && (
         <Image source={{ uri: post.image_url }} style={styles.postImage} resizeMode="cover" />
       )}
 
-      {/* Etkileşim Butonları */}
+      {/* Footer: Beğeni ve Yorum */}
       <View style={styles.footer}>
         <TouchableOpacity 
           style={styles.actionButton} 
@@ -127,7 +142,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center' 
   },
-  // --- YENİ RESİM STİLİ ---
   avatarImage: {
     width: 42,
     height: 42,
@@ -137,7 +151,6 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
     backgroundColor: '#f1f2f6'
   },
-  // ------------------------
   avatarPlaceholder: {
     width: 42,
     height: 42,
@@ -159,10 +172,18 @@ const styles = StyleSheet.create({
     fontSize: 15, 
     color: '#2d3436' 
   },
+  subHeader: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   role: { 
     fontSize: 11, 
     color: '#7f8c8d',
-    marginTop: 2
+  },
+  dateText: {
+    fontSize: 11,
+    color: '#b2bec3',
+    marginLeft: 6
   },
   deleteBtn: {
     padding: 5
