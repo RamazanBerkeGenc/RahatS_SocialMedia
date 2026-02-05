@@ -1,7 +1,51 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const WelcomeScreen = ({ navigation }) => {
+  // Kontrol yapılırken butonları gizlemek için state
+  const [isLoading, setIsLoading] = useState(true);
+
+  // --- OTOMATİK GİRİŞ KONTROLÜ ---
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        const role = await AsyncStorage.getItem('userRole');
+        const userId = await AsyncStorage.getItem('userId');
+        const rememberMe = await AsyncStorage.getItem('rememberMe');
+
+        // Eğer bilgiler var ve "Beni Hatırla" seçilmişse -> Direkt Ana Sayfaya git
+        if (token && role && userId && rememberMe === 'true') {
+          navigation.reset({
+            index: 0,
+            routes: [{ 
+              name: 'Main', 
+              params: { role: role, userId: parseInt(userId) } 
+            }],
+          });
+        } else {
+          // Değilse yüklemeyi bitir, butonları göster
+          setIsLoading(false);
+        }
+      } catch (e) {
+        console.error("Oto-Giriş Hatası:", e);
+        setIsLoading(false);
+      }
+    };
+
+    checkLoginStatus();
+  }, []);
+
+  // Kontrol sürerken Loading göster
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#4a90e2" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>RahatS</Text>

@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, Alert, KeyboardAvoidingView, 
   Platform, TouchableOpacity 
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // [YENİ] Hafıza kütüphanesi
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
+import Icon from 'react-native-vector-icons/Ionicons'; // [YENİ] Checkbox ikonu için
 import CustomButton from '../components/CustomButton';
 import CustomInput from '../components/CustomInput';
 import apiClient from '../api/apiClient';
@@ -14,6 +15,9 @@ const LoginScreen = ({ route, navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(true);
   const [loading, setLoading] = useState(false);
+  
+  // [YENİ] Beni Hatırla State'i (Varsayılan: Seçili)
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleLogin = async () => {
     if (tc.length !== 11) {
@@ -35,13 +39,20 @@ const LoginScreen = ({ route, navigation }) => {
         // --- KRİTİK GÜNCELLEME: TOKEN KAYDI ---
         const { token, user } = response.data;
 
-        // 1. Token'ı ve temel bilgileri telefon hafızasına kaydediyoruz
-        // apiClient.js her istekte 'userToken'ı okuyup Header'a ekleyecek.
+        // 1. Temel verileri kaydet
         await AsyncStorage.setItem('userToken', token);
         await AsyncStorage.setItem('userId', user.id.toString());
         await AsyncStorage.setItem('userRole', role);
 
-        // 2. Ana ekrana (MainTabs) yönlendiriyoruz
+        // 2. [YENİ] Beni Hatırla tercihini kaydet
+        if (rememberMe) {
+            await AsyncStorage.setItem('rememberMe', 'true');
+        } else {
+            // Eğer işaretli değilse, bu ayarı silelim (veya varsa kaldıralım)
+            await AsyncStorage.removeItem('rememberMe');
+        }
+
+        // 3. Ana ekrana yönlendir
         navigation.reset({
           index: 0,
           routes: [{ 
@@ -85,6 +96,21 @@ const LoginScreen = ({ route, navigation }) => {
           onToggleShow={() => setShowPassword(!showPassword)}
         />
 
+        {/* --- [YENİ] BENİ HATIRLA SEÇENEĞİ --- */}
+        <TouchableOpacity 
+            style={styles.rememberContainer} 
+            onPress={() => setRememberMe(!rememberMe)}
+            activeOpacity={0.8}
+        >
+            <Icon 
+                name={rememberMe ? "checkbox" : "square-outline"} 
+                size={24} 
+                color={rememberMe ? "#007bff" : "#7f8c8d"} 
+            />
+            <Text style={styles.rememberText}>Beni Hatırla</Text>
+        </TouchableOpacity>
+        {/* ------------------------------------- */}
+
         <CustomButton 
           title={loading ? "Giriş Yapılıyor..." : "Giriş Yap"}
           onPress={handleLogin}
@@ -103,6 +129,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f6fa' },
   inner: { flex: 1, padding: 30, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 28, fontWeight: 'bold', color: '#2f3640', marginBottom: 30 },
+  
+  // [YENİ] Beni Hatırla Stilleri
+  rememberContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start', // Sola hizala
+      marginBottom: 20,
+      marginLeft: 5
+  },
+  rememberText: {
+      marginLeft: 10,
+      color: '#2d3436',
+      fontSize: 16
+  },
+
   backButton: { marginTop: 20 },
   backText: { color: '#7f8c8d', fontWeight: '600' }
 });
