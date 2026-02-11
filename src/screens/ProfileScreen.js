@@ -1,28 +1,40 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, 
-  ActivityIndicator, RefreshControl, Image, Platform 
+  ActivityIndicator, RefreshControl, Image, Platform, Modal, Switch
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { launchImageLibrary } from 'react-native-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // [YENİ] Çıkış için eklendi
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../api/apiClient';
 import PostCard from '../components/PostCard';
+import { ThemeContext } from '../context/ThemeContext'; // Tema Context
 
 const ProfileScreen = ({ route, navigation }) => {
   const { userId, role, currentUserId, currentRole } = route.params || {};
   const isFocused = useIsFocused();
   
+  // Tema Bağlantısı
+  const { theme, isDarkMode, toggleTheme } = useContext(ThemeContext);
+
   // --- STATE ---
   const [userPosts, setUserPosts] = useState([]);
-  const [fullName, setFullName] = useState('');
+  const [userInfo, setUserInfo] = useState({ 
+    name: '', lastname: '', role: '', is_private: 0, profile_image: null 
+  });
   const [stats, setStats] = useState({ followers: 0, following: 0 });
-  const [profileImage, setProfileImage] = useState(null);
-  const [isFollowing, setIsFollowing] = useState(false);
+  
+  // STATÜ KODU: 0=Takip Etmiyor, 1=Takip Ediyor, 2=İstek Gönderildi
+  const [followStatus, setFollowStatus] = useState(0); 
+  
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [uploadingInfo, setUploadingInfo] = useState(false);
+
+  // --- AYARLAR STATE ---
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const isOwnProfile = userId === currentUserId && role === currentRole;
 
@@ -31,44 +43,28 @@ const ProfileScreen = ({ route, navigation }) => {
     try {
       if (!isRefreshing && userPosts.length === 0) setLoading(true);
       
-      // 1. İsim Çekme (Yedek Yöntem)
-      try {
-        if (role === 'student') {
-          const studentRes = await apiClient.get(`/student/dashboard/${userId}`);
-          const info = studentRes.data.studentInfo;
-          if (info) setFullName(`${info.name} ${info.lastname}`);
-        } else if (role === 'teacher') {
-          const teacherRes = await apiClient.get(`/teacher/students/${userId}`);
-          const tData = teacherRes.data[0];
-          if (tData) {
-            setFullName(`${tData.teacher_name || tData.name} ${tData.teacher_lastname || tData.lastname}`);
-          }
-        }
-      } catch (err) {
-        console.log("Yedek isim çekme hatası (Önemsiz):", err);
-      }
-
-      // 2. Profil İstatistikleri, Resim ve Postlar
       const res = await apiClient.get(`/social/profile/${userId}/${role}/${currentUserId}/${currentRole}`);
       
       if (res.data && res.data[0]) {
-        const profileStats = res.data[0][0]; // İlk sorgu sonucu
+        const profileData = res.data[0][0]; // Tablo 1: Profil Bilgisi
+        
+        setUserInfo(profileData);
         setStats({
-          followers: profileStats?.followers || 0,
-          following: profileStats?.following || 0
+          followers: profileData?.followers || 0,
+          following: profileData?.following || 0
         });
-        setIsFollowing(profileStats?.is_following === 1);
-        setProfileImage(profileStats?.profile_image);
         
-        // Veritabanından gelen güncel isim varsa onu kullan
-        if(profileStats?.name) setFullName(`${profileStats.name} ${profileStats.lastname}`);
+        setFollowStatus(profileData?.follow_status || 0);
         
-        setUserPosts(res.data[1] || []); // İkinci sorgu (postlar)
+        if (isOwnProfile) {
+            setIsPrivate(profileData?.is_private === 1);
+        }
+
+        setUserPosts(res.data[1] || []); // Tablo 2: Postlar
       }
 
     } catch (error) {
       console.error("Profil yükleme hatası:", error);
-      if (!fullName) setFullName("Kullanıcı");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -81,22 +77,26 @@ const ProfileScreen = ({ route, navigation }) => {
     }
   }, [userId, isFocused, fetchProfileData]);
 
+  // --- AYARLARI KAYDET ---
+  const saveSettings = async () => {
+    try {
+        await apiClient.post('/user/settings', {
+            user_id: currentUserId,
+            user_role: currentRole,
+            is_private: isPrivate
+        });
+        setSettingsVisible(false);
+        fetchProfileData(true); 
+        Alert.alert("Başarılı", "Ayarlar kaydedildi.");
+    } catch (error) {
+        Alert.alert("Hata", "Ayarlar kaydedilemedi.");
+    }
+  };
+
   // --- RESİM YÜKLEME ---
   const handleChoosePhoto = () => {
-    const options = {
-      mediaType: 'photo',
-      quality: 0.8,
-      selectionLimit: 1,
-    };
-
-    launchImageLibrary(options, async (response) => {
-      if (response.didCancel) return;
-      if (response.errorCode) {
-        Alert.alert("Hata", "Fotoğraf seçilemedi: " + response.errorMessage);
-        return;
-      }
-      const asset = response.assets[0];
-      await uploadPhoto(asset);
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, async (response) => {
+      if (response.assets) await uploadPhoto(response.assets[0]);
     });
   };
 
@@ -106,71 +106,25 @@ const ProfileScreen = ({ route, navigation }) => {
     formData.append('photo', {
       uri: Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri,
       type: asset.type,
-      name: asset.fileName || 'profile_image.jpg',
+      name: asset.fileName || 'profile.jpg',
     });
 
     try {
       const response = await apiClient.post('/user/upload-profile-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-
       if (response.data.success) {
-        Alert.alert("Başarılı", "Profil fotoğrafın güncellendi!");
-        setProfileImage(response.data.imagePath);
+        setUserInfo(prev => ({ ...prev, profile_image: response.data.imagePath }));
+        Alert.alert("Başarılı", "Profil fotoğrafı güncellendi.");
       }
-    } catch (error) {
-      console.error("Upload Hatası:", error);
-      Alert.alert("Hata", "Fotoğraf yüklenirken bir sorun oluştu.");
-    } finally {
-      setUploadingInfo(false);
-    }
-  };
-
-  // --- BEĞENİ SİSTEMİ ---
-  const handlePostLike = async (postId) => {
-    const originalPosts = [...userPosts];
-    const updatedPosts = userPosts.map(post => {
-      if (post.id === postId) {
-        const currentlyLiked = post.is_liked === 1;
-        return {
-          ...post,
-          is_liked: currentlyLiked ? 0 : 1,
-          like_count: currentlyLiked ? Math.max(0, post.like_count - 1) : post.like_count + 1
-        };
-      }
-      return post;
-    });
-    setUserPosts(updatedPosts);
-
-    try {
-      const response = await apiClient.post('/social/like', {
-        post_id: postId, user_id: currentUserId, user_role: currentRole
-      });
-      if (response.data.success) {
-        setUserPosts(currentPosts => currentPosts.map(p => {
-          if (p.id === postId) return { ...p, is_liked: response.data.is_liked };
-          return p;
-        }));
-      } else {
-        setUserPosts(originalPosts);
-      }
-    } catch (error) {
-      setUserPosts(originalPosts);
-    }
+    } catch (error) { Alert.alert("Hata", "Fotoğraf yüklenemedi."); } 
+    finally { setUploadingInfo(false); }
   };
 
   // --- TAKİP SİSTEMİ ---
   const handleFollowToggle = async () => {
-    const previousState = isFollowing;
-    // const previousFollowers = stats.followers; // Takipçi sayısını anlık değiştirmek istersen açabilirsin
-
-    setIsFollowing(!previousState);
-    // İyimser güncelleme:
-    setStats(prev => ({
-        ...prev,
-        followers: previousState ? Math.max(0, prev.followers - 1) : prev.followers + 1
-    }));
-
+    const prevStatus = followStatus;
+    
     try {
       const response = await apiClient.post('/social/follow', {
         follower_id: currentUserId, follower_role: currentRole,
@@ -178,16 +132,33 @@ const ProfileScreen = ({ route, navigation }) => {
       });
 
       if (response.data.success) {
-        setIsFollowing(response.data.is_following === 1);
-      } else {
-        throw new Error();
+        const newCode = response.data.follow_status; 
+        setFollowStatus(newCode);
+
+        if (newCode === 1) {
+            setStats(prev => ({ ...prev, followers: prev.followers + 1 }));
+        } else if (newCode === 0) {
+            if (prevStatus === 1) {
+                setStats(prev => ({ ...prev, followers: Math.max(0, prev.followers - 1) }));
+            }
+        } else if (newCode === 2) {
+            Alert.alert("İstek Gönderildi", "Hesap gizli, onay bekliyor.");
+        }
       }
     } catch (error) {
-      setIsFollowing(previousState);
-      // setStats(prev => ({ ...prev, followers: previousFollowers }));
-      fetchProfileData(); // Garanti olsun diye veriyi tazele
-      Alert.alert("Hata", "Takip işlemi gerçekleştirilemedi.");
+      setFollowStatus(prevStatus);
+      Alert.alert("Hata", "İşlem başarısız.");
     }
+  };
+
+  const handlePostLike = async (postId) => {
+    const originalPosts = [...userPosts];
+    setUserPosts(prev => prev.map(p => 
+        p.id === postId ? { ...p, is_liked: !p.is_liked, like_count: p.is_liked ? p.like_count - 1 : p.like_count + 1 } : p
+    ));
+    try {
+        await apiClient.post('/social/like', { post_id: postId, user_id: currentUserId, user_role: currentRole });
+    } catch (e) { setUserPosts(originalPosts); }
   };
 
   const handleDeletePost = async (postId) => {
@@ -196,165 +167,223 @@ const ProfileScreen = ({ route, navigation }) => {
         data: { userId: currentUserId, role: currentRole } 
       });
       if (res.data.success) fetchProfileData(true);
-    } catch (error) {
-      Alert.alert("Hata", "Gönderi silinemedi.");
-    }
+    } catch (error) { Alert.alert("Hata", "Gönderi silinemedi."); }
   };
-
-  // --- [GÜNCELLENDİ] ÇIKIŞ YAPMA ---
+  
   const handleLogout = () => {
-    Alert.alert("Çıkış", "Emin misiniz?", [
+    Alert.alert("Çıkış", "Uygulamadan çıkmak istiyor musunuz?", [
       { text: "Vazgeç" },
-      { 
-        text: "Evet", 
-        onPress: async () => {
-          try {
-            // Token ve kullanıcı bilgilerini telefondan sil
-            await AsyncStorage.removeItem('userToken');
-            await AsyncStorage.removeItem('userId');
-            await AsyncStorage.removeItem('userRole');
-            
-            // Login ekranına gönder
-            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-          } catch (e) {
-            console.error("Çıkış Hatası:", e);
-          }
+      { text: "Evet", style:'destructive', onPress: async () => {
+          await AsyncStorage.multiRemove(['userToken', 'userId', 'userRole']);
+          navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
         } 
       }
     ]);
   };
 
-  // --- GÖRÜNÜM (HEADER) ---
+  // --- HEADER RENDER ---
   const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      {isOwnProfile && (
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Icon name="log-out-outline" size={22} color="#e84118" />
-          <Text style={styles.logoutText}>Çıkış</Text>
-        </TouchableOpacity>
-      )}
-      
+    <View style={[styles.headerContainer, { backgroundColor: theme.cardBg }]}>
+        {isOwnProfile && (
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => setSettingsVisible(true)}>
+                <Icon name="settings-sharp" size={26} color={theme.iconColor} />
+            </TouchableOpacity>
+        )}
+
       <View style={styles.profileInfo}>
         <View style={styles.imageWrapper}>
-          {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.profileImage} />
+          {userInfo.profile_image ? (
+            <Image source={{ uri: userInfo.profile_image }} style={[styles.profileImage, { borderColor: theme.backgroundColor }]} />
           ) : (
-            <View style={[styles.profileImage, styles.placeholderImage]}>
-              <Text style={styles.avatarLetter}>{fullName?.charAt(0).toUpperCase() || "?"}</Text>
+            <View style={[styles.profileImage, styles.placeholderImage, { borderColor: theme.backgroundColor }]}>
+              <Text style={styles.avatarLetter}>{userInfo.name?.charAt(0).toUpperCase()}</Text>
             </View>
           )}
-
           {isOwnProfile && (
-            <TouchableOpacity 
-              style={styles.cameraButton} 
-              onPress={handleChoosePhoto}
-              disabled={uploadingInfo}
-            >
-              {uploadingInfo ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Icon name="camera" size={18} color="#fff" />
-              )}
+            <TouchableOpacity style={[styles.cameraButton, { borderColor: theme.cardBg }]} onPress={handleChoosePhoto} disabled={uploadingInfo}>
+              {uploadingInfo ? <ActivityIndicator size="small" color="#fff" /> : <Icon name="camera" size={16} color="#fff" />}
             </TouchableOpacity>
           )}
         </View>
 
-        <Text style={styles.userName} numberOfLines={1}>{fullName || "Yükleniyor..."}</Text>
-        <Text style={styles.userRoleText}>
-            {role === 'teacher' ? '👨‍🏫 Yetkili Eğitmen' : '🎓 RahatS Öğrencisi'}
+        <Text style={[styles.userName, { color: theme.textColor }]}>{userInfo.name} {userInfo.lastname}</Text>
+        <Text style={[styles.userRoleText, { color: theme.subTextColor }]}>
+            {role === 'teacher' ? '👨‍🏫 Eğitmen' : '🎓 Öğrenci'}
+            {userInfo.is_private === 1 && <Text> • 🔒 Gizli</Text>}
         </Text>
       </View>
 
-      <View style={styles.statsBar}>
-        <View style={styles.statBox}><Text style={styles.statCount}>{userPosts.length}</Text><Text style={styles.statLabel}>Gönderi</Text></View>
-        <View style={[styles.statBox, { marginHorizontal: 40 }]}><Text style={styles.statCount}>{stats.followers}</Text><Text style={styles.statLabel}>Takipçi</Text></View>
-        <View style={styles.statBox}><Text style={styles.statCount}>{stats.following}</Text><Text style={styles.statLabel}>Takip</Text></View>
+      <View style={[styles.statsBar, { borderTopColor: theme.borderColor }]}>
+        <View style={styles.statBox}>
+            <Text style={[styles.statCount, { color: theme.textColor }]}>{userInfo.post_count || 0}</Text>
+            <Text style={[styles.statLabel, { color: theme.subTextColor }]}>Gönderi</Text>
+        </View>
+        <View style={[styles.statBox, { marginHorizontal: 40 }]}>
+            <Text style={[styles.statCount, { color: theme.textColor }]}>{stats.followers}</Text>
+            <Text style={[styles.statLabel, { color: theme.subTextColor }]}>Takipçi</Text>
+        </View>
+        <View style={styles.statBox}>
+            <Text style={[styles.statCount, { color: theme.textColor }]}>{stats.following}</Text>
+            <Text style={[styles.statLabel, { color: theme.subTextColor }]}>Takip</Text>
+        </View>
       </View>
 
       {!isOwnProfile && (
         <TouchableOpacity 
-          style={[styles.followBtn, isFollowing && styles.unfollowBtn]} 
+          style={[
+            styles.followBtn, 
+            followStatus === 1 && styles.unfollowBtn, 
+            followStatus === 2 && styles.pendingBtn 
+          ]} 
           onPress={handleFollowToggle}
-          activeOpacity={0.7}
         >
-          <Text style={[styles.followBtnText, isFollowing && styles.unfollowBtnText]}>
-            {isFollowing ? "Takipten Çık" : "Takip Et"}
+          <Text style={[
+            styles.followBtnText, 
+            (followStatus === 1 || followStatus === 2) && styles.unfollowBtnText
+          ]}>
+            {followStatus === 0 && "Takip Et"}
+            {followStatus === 1 && "Takipten Çık"}
+            {followStatus === 2 && "İstek Gönderildi"}
           </Text>
         </TouchableOpacity>
       )}
     </View>
   );
 
+  // --- GİZLİLİK KİLİDİ ---
+  const isProfileLocked = !isOwnProfile && userInfo.is_private === 1 && followStatus !== 1;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {loading && !refreshing ? (
         <View style={styles.center}><ActivityIndicator size="large" color="#007bff" /></View>
       ) : (
         <FlatList
           ListHeaderComponent={renderHeader}
-          data={userPosts}
+          data={isProfileLocked ? [] : userPosts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-            <PostCard 
-              post={item} 
-              currentUserId={currentUserId}
-              currentRole={currentRole}
-              onLike={() => handlePostLike(item.id)}
-              onComment={() => navigation.navigate('PostDetail', { post: item, userId: currentUserId, role: currentRole })}
-              onDelete={handleDeletePost}
-              onProfilePress={(id, r) => {
-                if (id !== userId || r !== role) {
-                  // Kendi profilimiz değilse git, yoksa zaten buradayız
-                  navigation.push('UserProfile', { userId: id, role: r, currentUserId, currentRole });
-                }
-              }} 
-            />
+            // [YENİ] PostCard TIKLANABİLİR YAPILDI
+            <TouchableOpacity 
+              activeOpacity={0.9} 
+              onPress={() => navigation.navigate('PostDetail', { post: item, userId: currentUserId, role: currentRole })}
+            >
+              <PostCard 
+                post={item} currentUserId={currentUserId} currentRole={currentRole}
+                onLike={() => handlePostLike(item.id)}
+                onComment={() => navigation.navigate('PostDetail', { post: item, userId: currentUserId, role: currentRole })}
+                onDelete={handleDeletePost}
+                onProfilePress={()=>{}}
+              />
+            </TouchableOpacity>
           )}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfileData(true); }} colors={['#007bff']} />
-          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="documents-outline" size={40} color="#ccc" />
-              <Text style={styles.emptyText}>Henüz paylaşım yok.</Text>
+                {isProfileLocked ? (
+                    <>
+                        <Icon name="lock-closed-outline" size={50} color={theme.subTextColor} />
+                        <Text style={[styles.lockTitle, { color: theme.textColor }]}>Bu Hesap Gizli</Text>
+                        <Text style={[styles.emptyText, { color: theme.subTextColor }]}>Fotoğraflarını görmek için takip isteği gönder.</Text>
+                    </>
+                ) : (
+                    <>
+                        <Icon name="images-outline" size={40} color={theme.borderColor} />
+                        <Text style={[styles.emptyText, { color: theme.subTextColor }]}>Henüz paylaşım yok.</Text>
+                    </>
+                )}
             </View>
           }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true); fetchProfileData(true);}} />}
         />
       )}
+
+      {/* --- AYARLAR MODALI --- */}
+      <Modal visible={settingsVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+                <View style={styles.modalHeader}>
+                    <Text style={[styles.modalTitle, { color: theme.textColor }]}>Ayarlar</Text>
+                    <TouchableOpacity onPress={()=>setSettingsVisible(false)}>
+                        <Icon name="close" size={24} color={theme.iconColor} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.settingRow}>
+                    <View>
+                        <Text style={[styles.settingLabel, { color: theme.textColor }]}>Gizli Hesap</Text>
+                        <Text style={[styles.settingSub, { color: theme.subTextColor }]}>Onayladığın kişiler fotoğraflarını görebilir.</Text>
+                    </View>
+                    <Switch value={isPrivate} onValueChange={setIsPrivate} trackColor={{false: "#767577", true: "#007bff"}} thumbColor={"#f4f3f4"} />
+                </View>
+
+                <View style={styles.settingRow}>
+                    <View>
+                        <Text style={[styles.settingLabel, { color: theme.textColor }]}>Koyu Tema</Text>
+                        <Text style={[styles.settingSub, { color: theme.subTextColor }]}>Uygulama görünümünü değiştir.</Text>
+                    </View>
+                    
+                    {/* GLOBAL TEMA DEĞİŞTİRİCİ */}
+                    <Switch 
+                        value={isDarkMode} 
+                        onValueChange={(val) => toggleTheme(val)} 
+                        trackColor={{false: "#767577", true: "#007bff"}} 
+                        thumbColor={"#f4f3f4"} 
+                    />
+                </View>
+
+                <TouchableOpacity style={styles.saveBtn} onPress={saveSettings}>
+                    <Text style={styles.saveBtnText}>Değişiklikleri Kaydet</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalLogoutBtn} onPress={() => { setSettingsVisible(false); setTimeout(handleLogout, 500); }}>
+                    <Text style={styles.modalLogoutText}>Çıkış Yap</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f5' },
+  container: { flex: 1 }, 
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerContainer: { backgroundColor: '#fff', padding: 25, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 4, alignItems: 'center' },
-  logoutBtn: { position: 'absolute', top: 20, right: 20, flexDirection: 'row', alignItems: 'center', zIndex: 10 },
-  logoutText: { color: '#e84118', marginLeft: 4, fontWeight: 'bold', fontSize: 13 },
-  profileInfo: { alignItems: 'center', marginTop: 10 },
-  
-  imageWrapper: { position: 'relative', marginBottom: 12 },
-  profileImage: { width: 100, height: 100, borderRadius: 50, borderWidth: 4, borderColor: '#e3f2fd' },
+  headerContainer: { padding: 20, paddingBottom: 30, marginBottom: 10, alignItems: 'center' },
+  settingsBtn: { position: 'absolute', top: 20, right: 20, padding: 5, zIndex: 10 },
+  imageWrapper: { marginBottom: 12 },
+  profileImage: { width: 90, height: 90, borderRadius: 45, borderWidth: 4 },
   placeholderImage: { backgroundColor: '#007bff', justifyContent: 'center', alignItems: 'center' },
-  avatarLetter: { fontSize: 40, color: '#fff', fontWeight: 'bold' },
-  cameraButton: {
-    position: 'absolute', bottom: 0, right: 0,
-    backgroundColor: '#007bff', width: 34, height: 34, borderRadius: 17,
-    justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#fff'
-  },
-
-  userName: { fontSize: 20, fontWeight: 'bold', color: '#2d3436' },
-  userRoleText: { fontSize: 13, color: '#7f8c8d', marginTop: 4 },
-  statsBar: { flexDirection: 'row', justifyContent: 'center', marginTop: 25, borderTopWidth: 1, borderTopColor: '#f1f2f6', paddingTop: 20, width: '100%' },
+  avatarLetter: { fontSize: 36, color: '#fff', fontWeight: 'bold' },
+  cameraButton: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#007bff', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
+  userName: { fontSize: 20, fontWeight: 'bold' },
+  userRoleText: { fontSize: 13, marginTop: 2 },
+  statsBar: { flexDirection: 'row', justifyContent: 'center', marginTop: 20, width: '100%', borderTopWidth: 1 },
   statBox: { alignItems: 'center' },
-  statCount: { fontSize: 18, fontWeight: 'bold', color: '#2d3436' },
-  statLabel: { fontSize: 12, color: '#95a5a6' },
-  followBtn: { backgroundColor: '#007bff', paddingVertical: 10, paddingHorizontal: 50, borderRadius: 25, marginTop: 20, width: '80%', alignItems: 'center' },
-  unfollowBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ccc' },
-  followBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+  statCount: { fontSize: 18, fontWeight: 'bold' },
+  statLabel: { fontSize: 12 },
+  
+  // BUTON STİLLERİ
+  followBtn: { backgroundColor: '#007bff', paddingVertical: 8, paddingHorizontal: 40, borderRadius: 20, marginTop: 15 },
+  unfollowBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ccc' },
+  pendingBtn: { backgroundColor: '#dfe6e9', borderWidth: 1, borderColor: '#b2bec3' }, 
+  
+  followBtnText: { color: '#fff', fontWeight: 'bold' },
   unfollowBtnText: { color: '#666' },
-  emptyContainer: { padding: 60, alignItems: 'center' },
-  emptyText: { textAlign: 'center', color: '#95a5a6', marginTop: 10, fontStyle: 'italic' }
+
+  emptyContainer: { padding: 50, alignItems: 'center' },
+  lockTitle: { fontSize: 18, fontWeight: 'bold', marginTop: 10 },
+  emptyText: { textAlign: 'center', marginTop: 5 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold' },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  settingLabel: { fontSize: 16, fontWeight: 'bold' },
+  settingSub: { fontSize: 12, maxWidth: 250 },
+  saveBtn: { backgroundColor: '#00b894', padding: 15, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  modalLogoutBtn: { marginTop: 15, alignItems: 'center', padding: 10 },
+  modalLogoutText: { color: '#e84118', fontWeight: 'bold', fontSize: 16 }
 });
 
 export default ProfileScreen;

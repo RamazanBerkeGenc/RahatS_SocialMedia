@@ -1,13 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, ActivityIndicator, 
   RefreshControl, TouchableOpacity, ScrollView, Modal, Alert 
 } from 'react-native';
 import apiClient from '../api/apiClient';
+import { ThemeContext } from '../context/ThemeContext'; // [YENİ] Tema Context
 
 const StudentDashboard = ({ route, navigation }) => {
   const { studentId } = route.params || {};
   
+  // [YENİ] Tema Bağlantısı
+  const { theme } = useContext(ThemeContext);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,10 +56,9 @@ const StudentDashboard = ({ route, navigation }) => {
     }
   };
 
-  // --- KRİTİK GÜNCELLEME: VideoPlayer Ekranına Yönlendirme ---
   const handleWatch = (item) => {
     if (item.icerik) {
-      setVideoModalVisible(false); // Modalı kapat
+      setVideoModalVisible(false); 
       navigation.navigate('VideoPlayer', {
         materialId: item.id,
         userId: studentId,
@@ -75,11 +78,11 @@ const StudentDashboard = ({ route, navigation }) => {
   const renderGradeCard = (item) => {
     const formatValue = (val) => (val !== null && val !== undefined ? val : '-');
     return (
-      <View key={item.ders_id} style={styles.card}>
-        <View style={styles.cardHeader}>
+      <View key={item.ders_id} style={[styles.card, { backgroundColor: theme.cardBg }]}>
+        <View style={[styles.cardHeader, { borderBottomColor: theme.borderColor }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.lessonName}>{item.lesson_name}</Text>
-            <Text style={styles.teacherName}>{item.teacher_name || 'Eğitmen Atanmadı'}</Text>
+            <Text style={[styles.lessonName, { color: theme.textColor }]}>{item.lesson_name}</Text>
+            <Text style={[styles.teacherName, { color: theme.subTextColor }]}>{item.teacher_name || 'Eğitmen Atanmadı'}</Text>
           </View>
           
           <TouchableOpacity 
@@ -105,8 +108,8 @@ const StudentDashboard = ({ route, navigation }) => {
             { label: 'Sözlü 2', val: item.sozlu2 },
           ].map((detail, idx) => (
             <View key={idx} style={styles.detailItem}>
-              <Text style={styles.detailLabel}>{detail.label}</Text>
-              <Text style={styles.detailValue}>{formatValue(detail.val)}</Text>
+              <Text style={[styles.detailLabel, { color: theme.subTextColor }]}>{detail.label}</Text>
+              <Text style={[styles.detailValue, { color: theme.textColor }]}>{formatValue(detail.val)}</Text>
             </View>
           ))}
         </View>
@@ -115,8 +118,8 @@ const StudentDashboard = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <View style={[styles.header, { backgroundColor: theme.isDark ? theme.headerBg : '#50c878' }]}>
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.headerTitle}>Merhaba, {data?.studentInfo?.name || 'Öğrenci'}</Text>
@@ -128,7 +131,7 @@ const StudentDashboard = ({ route, navigation }) => {
       {loading && !refreshing ? (
         <View style={styles.centerLoader}>
             <ActivityIndicator size="large" color="#50c878" />
-            <Text style={{marginTop: 10, color: '#666'}}>Başarı verilerin yükleniyor...</Text>
+            <Text style={{marginTop: 10, color: theme.subTextColor}}>Başarı verilerin yükleniyor...</Text>
         </View>
       ) : (
         <ScrollView 
@@ -145,7 +148,7 @@ const StudentDashboard = ({ route, navigation }) => {
             data.grades.map(item => renderGradeCard(item))
           ) : (
             <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Henüz not girişi yapılmamış.</Text>
+                <Text style={[styles.emptyText, { color: theme.subTextColor }]}>Henüz not girişi yapılmamış.</Text>
             </View>
           )}
         </ScrollView>
@@ -153,27 +156,30 @@ const StudentDashboard = ({ route, navigation }) => {
 
       <Modal animationType="slide" transparent={true} visible={videoModalVisible} onRequestClose={() => setVideoModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.videoModalContent}>
+          <View style={[styles.videoModalContent, { backgroundColor: theme.cardBg }]}>
             <View style={styles.modalIndicator} />
-            <Text style={styles.modalTitle}>{selectedLessonName}</Text>
-            <Text style={styles.modalSub}>Yapay zekanın senin için seçtiği materyaller:</Text>
+            <Text style={[styles.modalTitle, { color: theme.textColor }]}>{selectedLessonName}</Text>
+            <Text style={[styles.modalSub, { color: theme.subTextColor }]}>Yapay zekanın senin için seçtiği materyaller:</Text>
 
             <FlatList
               data={selectedLessonVideos}
               keyExtractor={item => item.id.toString()}
               renderItem={({item}) => (
-                <TouchableOpacity style={styles.videoListCard} onPress={() => handleWatch(item)}>
-                  <View style={styles.videoIconBox}>
+                <TouchableOpacity 
+                  style={[styles.videoListCard, { backgroundColor: theme.inputBg }]} 
+                  onPress={() => handleWatch(item)}
+                >
+                  <View style={[styles.videoIconBox, { backgroundColor: theme.cardBg }]}>
                     <Text style={{fontSize: 20}}>{item.tip === 'url' || item.icerik.includes('youtube') ? '🔗' : '📺'}</Text>
                   </View>
                   <View style={{flex: 1}}>
-                    <Text style={styles.videoListTitle}>{item.baslik}</Text>
+                    <Text style={[styles.videoListTitle, { color: theme.textColor }]}>{item.baslik}</Text>
                     <Text style={styles.videoListMeta}>İhtiyaç Seviyesi: %{item.hedef_aralik}</Text>
                   </View>
                   <Text style={styles.watchText}>Uygulamada İzle</Text>
                 </TouchableOpacity>
               )}
-              ListEmptyComponent={<Text style={styles.emptyText}>Şu an uygun bir öneri bulunmuyor.</Text>}
+              ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subTextColor }]}>Şu an uygun bir öneri bulunmuyor.</Text>}
               style={{ marginVertical: 15 }}
             />
 
@@ -188,9 +194,8 @@ const StudentDashboard = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f6fa' },
+  container: { flex: 1 }, // Dinamik arka plan
   header: { 
-    backgroundColor: '#50c878', 
     paddingTop: 50, paddingBottom: 25, paddingHorizontal: 25, 
     borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 5
   },
@@ -199,10 +204,10 @@ const styles = StyleSheet.create({
   headerSubtitle: { fontSize: 12, color: '#e8f8f0', marginTop: 2 },
   listContainer: { padding: 15 },
   centerLoader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  card: { backgroundColor: '#fff', borderRadius: 20, padding: 18, marginBottom: 12, elevation: 3 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#f1f2f6', paddingBottom: 10, marginBottom: 12 },
-  lessonName: { fontSize: 17, fontWeight: 'bold', color: '#2f3640' },
-  teacherName: { fontSize: 11, color: '#7f8c8d' },
+  card: { borderRadius: 20, padding: 18, marginBottom: 12, elevation: 3 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, paddingBottom: 10, marginBottom: 12 },
+  lessonName: { fontSize: 17, fontWeight: 'bold' },
+  teacherName: { fontSize: 11 },
   studyButton: { backgroundColor: '#f1c40f', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 8 },
   studyButtonText: { color: '#2f3640', fontWeight: 'bold', fontSize: 11 },
   avgBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignItems: 'center', minWidth: 50 },
@@ -210,22 +215,22 @@ const styles = StyleSheet.create({
   avgValue: { fontSize: 14, fontWeight: 'bold', color: '#fff' },
   detailsGrid: { flexDirection: 'row', justifyContent: 'space-around' },
   detailItem: { alignItems: 'center' },
-  detailLabel: { fontSize: 9, color: '#a4b0be', marginBottom: 1 },
-  detailValue: { fontSize: 14, fontWeight: '600', color: '#2f3640' },
+  detailLabel: { fontSize: 9, marginBottom: 1 },
+  detailValue: { fontSize: 14, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  videoModalContent: { backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, maxHeight: '85%' },
+  videoModalContent: { borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25, maxHeight: '85%' },
   modalIndicator: { width: 40, height: 4, backgroundColor: '#dcdde1', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#2f3640', textAlign: 'center' },
-  modalSub: { fontSize: 11, color: '#7f8c8d', textAlign: 'center', marginTop: 3 },
-  videoListCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fa', padding: 12, borderRadius: 15, marginBottom: 10 },
-  videoIconBox: { width: 40, height: 40, backgroundColor: '#fff', borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12, elevation: 1 },
-  videoListTitle: { fontSize: 14, fontWeight: 'bold', color: '#2f3640' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+  modalSub: { fontSize: 11, textAlign: 'center', marginTop: 3 },
+  videoListCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 15, marginBottom: 10 },
+  videoIconBox: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12, elevation: 1 },
+  videoListTitle: { fontSize: 14, fontWeight: 'bold' },
   videoListMeta: { fontSize: 10, color: '#4a90e2', fontWeight: '600' },
   watchText: { color: '#50c878', fontWeight: 'bold', fontSize: 12 },
   closeModalBtn: { backgroundColor: '#e84118', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 5 },
   closeModalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
-  emptyText: { textAlign: 'center', color: '#7f8c8d', fontSize: 14 }
+  emptyText: { textAlign: 'center', fontSize: 14 }
 });
 
 export default StudentDashboard;

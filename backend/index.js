@@ -246,7 +246,7 @@ app.get('/api/academic/get-progress/:userId/:materialId', authorize, (req, res) 
 // --- MATERYAL YÖNETİMİ ---
 app.post('/api/teacher/upload-material', authorize, upload.single('video'), (req, res) => {
     const { ogretmen_id, ders_id, sinif_seviyesi, hedef_aralik, tip, baslik, icerik } = req.body;
-    let finalContent = tip === 'video' ? `http://10.0.2.2:3000/uploads/videos/${req.file.filename}` : icerik;
+    let finalContent = tip === 'video' ? `http://10.0.2.2/uploads/videos/${req.file.filename}` : icerik; //Eski 10.0.2.2 ve 192.168.232.63
     
     db.query('CALL sp_UploadMaterial(?, ?, ?, ?, ?, ?, ?)', 
         [ogretmen_id, ders_id, sinif_seviyesi, hedef_aralik, tip, finalContent, baslik], 
@@ -275,7 +275,7 @@ app.delete('/api/teacher/delete-material/:materialId', authorize, (req, res) => 
     db.query('CALL sp_DeleteMaterial(?, ?)', [req.params.materialId, teacherId], (err) => res.json({ success: !err }));
 });
 
-// --- [YENİ] PROFİL RESMİ YÜKLEME ---
+// ---PROFİL RESMİ YÜKLEME ---
 app.post('/api/user/upload-profile-image', authorize, uploadProfile.single('photo'), (req, res) => {
     try {
         const userId = req.user.id;
@@ -284,8 +284,7 @@ app.post('/api/user/upload-profile-image', authorize, uploadProfile.single('phot
         if (!req.file) return res.status(400).json({ message: "Resim seçilmedi." });
 
         // Sunucudaki tam dosya yolu. 
-        // NOT: Android Emülatör için 10.0.2.2 kullanılır. Gerçek telefonda bilgisayar IP'sini yazın.
-        const imagePath = `http://10.0.2.2:3000/uploads/profiles/${req.file.filename}`;
+        const imagePath = `http://10.0.2.2/uploads/profiles/${req.file.filename}`; // Eski 10.0.2.2 ve 192.168.232.63
 
         db.query('CALL sp_UpdateProfileImage(?, ?, ?)', 
             [userId, userRole, imagePath], 
@@ -301,6 +300,39 @@ app.post('/api/user/upload-profile-image', authorize, uploadProfile.single('phot
         console.error("Profil Yükleme Hatası:", error);
         res.status(500).json({ success: false, message: error.message });
     }
+});
+
+// --- BİLDİRİMLERİ GETİR ---
+app.get('/api/social/notifications/:userId/:role', authorize, (req, res) => {
+    const { userId, role } = req.params;
+    db.query('CALL sp_GetNotifications(?, ?)', [userId, role], (err, results) => {
+        if (err) {
+            console.error("Bildirim Hatası:", err);
+            return res.status(500).json({ message: "Hata" });
+        }
+        res.json(results[0]); 
+    });
+});
+
+// --- [YENİ] AYARLARI GÜNCELLE ---
+app.post('/api/user/settings', authorize, (req, res) => {
+    const { user_id, user_role, is_private } = req.body;
+    
+    // Güvenlik: Başkasının ayarını değiştiremesin
+    if (req.user.id != user_id || req.user.role != user_role) {
+        return res.status(403).json({ message: "Yetkisiz işlem" });
+    }
+
+    db.query('CALL sp_UpdateSettings(?, ?, ?)', 
+        [user_id, user_role, is_private ? 1 : 0], 
+        (err) => {
+            if (err) {
+                console.error("Ayar Güncelleme Hatası:", err);
+                return res.status(500).json({ success: false });
+            }
+            res.json({ success: true });
+        }
+    );
 });
 
 
@@ -340,7 +372,10 @@ app.post('/api/social/follow', authorize, (req, res) => {
         [follower_id, follower_role, following_id, following_role], 
         (err, results) => {
             if (err) return res.status(500).json({ success: false });
-            res.json({ success: true, is_following: results[0][0].is_following }); 
+            
+            // DÜZELTME BURADA: SQL artık 'status_code' döndürüyor.
+            // Bunu frontend'e 'follow_status' olarak gönderiyoruz.
+            res.json({ success: true, follow_status: results[0][0].status_code }); 
         }
     );
 });
@@ -379,6 +414,40 @@ app.get('/api/social/search', authorize, (req, res) => {
         if (err) return res.status(500).json({ message: "Hata" });
         res.json(results[0]); 
     });
+});
+
+// --- ARKADAŞ ÖNERİLERİ ---
+app.get('/api/social/recommendations/:userId/:role', authorize, (req, res) => {
+    const { userId, role } = req.params;
+    db.query('CALL sp_GetRecommendations(?, ?)', [userId, role], (err, results) => {
+        if (err) {
+            console.error("Öneri Hatası:", err);
+            return res.status(500).json({ message: "Hata" });
+        }
+        res.json(results[0]); 
+    });
+});
+
+// --- TAKİP İSTEKLERİNİ GETİR ---
+app.get('/api/social/follow-requests/:userId/:role', authorize, (req, res) => {
+    const { userId, role } = req.params;
+    db.query('CALL sp_GetFollowRequests(?, ?)', [userId, role], (err, results) => {
+        if (err) return res.status(500).json({ message: "Hata" });
+        res.json(results[0]);
+    });
+});
+
+// --- TAKİP İSTEĞİNE CEVAP VER (KABUL/RED) ---
+app.post('/api/social/respond-request', authorize, (req, res) => {
+    const { user_id, user_role, follower_id, follower_role, action } = req.body; // action: 'accept' or 'decline'
+    
+    db.query('CALL sp_RespondFollowRequest(?, ?, ?, ?, ?)', 
+        [user_id, user_role, follower_id, follower_role, action], 
+        (err) => {
+            if (err) return res.status(500).json({ success: false });
+            res.json({ success: true });
+        }
+    );
 });
 
 const PORT = process.env.PORT || 3000;

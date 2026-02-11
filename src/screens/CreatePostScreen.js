@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import apiClient from '../api/apiClient';
+import { ThemeContext } from '../context/ThemeContext'; // [YENİ] Tema Context
 
 const CreatePostScreen = ({ route, navigation }) => {
+  // [YENİ] Tema Bağlantısı
+  const { theme } = useContext(ThemeContext);
+
   // Navigasyondan gelen dinamik veriler
   const { userId, role, onPostCreated } = route.params || {}; 
   const [content, setContent] = useState('');
@@ -39,7 +43,6 @@ const CreatePostScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       // AI GÜVENLİK FİLTRESİ (HTTP 400):
-      // Backend uygunsuz içerik tespit ettiğinde 400 döndürür ve veritabanına kayıt yapmaz.
       if (error.response && error.response.status === 400) {
         Alert.alert("Güvenlik Filtresi", error.response.data.message || "İçeriğiniz kurallara aykırı bulundu.");
       } else {
@@ -52,19 +55,19 @@ const CreatePostScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {/* Mevcut rolü teyit etmek için bilgi etiketi */}
-      <Text style={styles.roleLabel}>
+      <Text style={[styles.roleLabel, { color: theme.subTextColor }]}>
         {role === 'teacher' ? '👨‍🏫 Öğretmen Modu' : '🎓 Öğrenci Modu'} (ID: {userId})
       </Text>
       
       <TextInput
-        style={styles.input}
+        style={[styles.input, { color: theme.textColor, borderBottomColor: theme.borderColor }]}
         placeholder="Neler düşünüyorsun?"
         multiline
         value={content}
         onChangeText={setContent}
-        placeholderTextColor="#95a5a6"
+        placeholderTextColor={theme.subTextColor}
       />
       
       <TouchableOpacity 
@@ -83,9 +86,9 @@ const CreatePostScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  roleLabel: { fontSize: 12, color: '#95a5a6', marginBottom: 10, textAlign: 'right', fontStyle: 'italic' },
-  input: { height: 150, textAlignVertical: 'top', fontSize: 16, borderBottomWidth: 1, borderBottomColor: '#eee', color: '#333' },
+  container: { flex: 1, padding: 20 },
+  roleLabel: { fontSize: 12, marginBottom: 10, textAlign: 'right', fontStyle: 'italic' },
+  input: { height: 150, textAlignVertical: 'top', fontSize: 16, borderBottomWidth: 1 },
   button: { backgroundColor: '#007bff', padding: 15, borderRadius: 10, marginTop: 20, alignItems: 'center', elevation: 2 },
   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });

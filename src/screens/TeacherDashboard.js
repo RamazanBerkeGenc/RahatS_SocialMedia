@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, 
-  Modal, ScrollView, TouchableOpacity, KeyboardAvoidingView, 
-  Platform, RefreshControl, TextInput 
+  Modal, ScrollView, TouchableOpacity, RefreshControl, TextInput 
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -11,10 +10,14 @@ import ClassChip from '../components/ClassChip';
 import StudentCard from '../components/StudentCard';
 import CustomButton from '../components/CustomButton';
 import CustomInput from '../components/CustomInput';
+import { ThemeContext } from '../context/ThemeContext'; // [YENİ] Tema Context
 
 const TeacherDashboard = ({ route }) => {
   const { teacherId } = route.params || {};
   
+  // [YENİ] Tema Bağlantısı
+  const { theme } = useContext(ThemeContext);
+
   // State Yönetimi
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
@@ -181,16 +184,16 @@ const TeacherDashboard = ({ route }) => {
   };
 
   if (loading && !refreshing) {
-    return <View style={styles.centerContainer}><ActivityIndicator size="large" color="#4a90e2" /></View>;
+    return <View style={[styles.centerContainer, { backgroundColor: theme.backgroundColor }]}><ActivityIndicator size="large" color="#4a90e2" /></View>;
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {/* HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.isDark ? theme.headerBg : '#4a90e2' }]}>
         <View>
-          <Text style={styles.headerTitle}>RahatS Panel</Text>
-          <Text style={styles.headerSubtitle}>Eğitmen Yönetimi</Text>
+          <Text style={[styles.headerTitle, { color: theme.isDark ? theme.textColor : '#fff' }]}>RahatS Panel</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.isDark ? theme.subTextColor : '#d1e3f8' }]}>Eğitmen Yönetimi</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => { resetForm(); setActiveTab('form'); }}>
           <Icon name="add-circle" size={20} color="#fff" />
@@ -199,23 +202,29 @@ const TeacherDashboard = ({ route }) => {
       </View>
 
       {/* TAB BAR */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
         <TouchableOpacity style={[styles.tabItem, activeTab === 'students' && styles.activeTabItem]} onPress={() => setActiveTab('students')}>
-          <Text style={[styles.tabLabel, activeTab === 'students' && styles.activeTabLabel]}>Öğrenciler</Text>
+          <Text style={[styles.tabLabel, { color: theme.subTextColor }, activeTab === 'students' && styles.activeTabLabel]}>Öğrenciler</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tabItem, activeTab === 'materials' && styles.activeTabItem]} onPress={() => setActiveTab('materials')}>
-          <Text style={[styles.tabLabel, activeTab === 'materials' && styles.activeTabLabel]}>Materyallerim</Text>
+          <Text style={[styles.tabLabel, { color: theme.subTextColor }, activeTab === 'materials' && styles.activeTabLabel]}>Materyallerim</Text>
         </TouchableOpacity>
       </View>
 
       {activeTab === 'students' ? (
         <View style={{flex: 1}}>
-          <View style={styles.searchContainer}>
-            <Icon name="search" size={20} color="#95a5a6" />
-            <TextInput style={styles.searchInput} placeholder="Öğrenci ara..." value={searchQuery} onChangeText={setSearchQuery} />
+          <View style={[styles.searchContainer, { backgroundColor: theme.cardBg }]}>
+            <Icon name="search" size={20} color={theme.subTextColor} />
+            <TextInput 
+                style={[styles.searchInput, { color: theme.textColor }]} 
+                placeholder="Öğrenci ara..." 
+                placeholderTextColor={theme.subTextColor}
+                value={searchQuery} 
+                onChangeText={setSearchQuery} 
+            />
           </View>
 
-          <View style={styles.fixedFilterSection}>
+          <View style={[styles.fixedFilterSection, { borderBottomColor: theme.borderColor }]}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {classes.map(c => (
                 <ClassChip key={c.id.toString()} label={c.name} isActive={selectedClassId === c.id} onPress={() => setSelectedClassId(c.id)} />
@@ -227,7 +236,7 @@ const TeacherDashboard = ({ route }) => {
             data={filteredStudents} 
             keyExtractor={(item) => item.student_id.toString()}
             renderItem={({ item }) => <StudentCard item={item} onPress={() => openGradeModal(item)} />}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchInitialData();}} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchInitialData();}} colors={['#4a90e2']} />}
             contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 20 }} 
           />
         </View>
@@ -236,10 +245,10 @@ const TeacherDashboard = ({ route }) => {
           data={myMaterials} 
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-            <View style={styles.materialCard}>
+            <View style={[styles.materialCard, { backgroundColor: theme.cardBg }]}>
               <View style={{flex: 1}}>
-                <Text style={styles.matTitle}>{item.baslik}</Text>
-                <Text style={styles.matMeta}>{item.sinif_seviyesi}. Sınıf | %{item.hedef_aralik}</Text>
+                <Text style={[styles.matTitle, { color: theme.textColor }]}>{item.baslik}</Text>
+                <Text style={[styles.matMeta, { color: theme.subTextColor }]}>{item.sinif_seviyesi}. Sınıf | %{item.hedef_aralik}</Text>
               </View>
               <View style={styles.actionRow}>
                 <TouchableOpacity onPress={() => fetchMaterialStats(item)} style={{marginRight: 15}}><Icon name="stats-chart-outline" size={22} color="#50c878" /></TouchableOpacity>
@@ -253,39 +262,54 @@ const TeacherDashboard = ({ route }) => {
       ) : (
         /* FORM EKRANI */
         <ScrollView style={styles.formContainer} contentContainerStyle={{paddingBottom: 40}}>
-            <Text style={styles.formTitle}>{isEditing ? "Materyali Düzenle" : "Yeni Materyal"}</Text>
-            <CustomInput label="Başlık" value={videoData.baslik} onChangeText={(t) => setVideoData({...videoData, baslik: t})} />
+            <Text style={[styles.formTitle, { color: theme.textColor }]}>{isEditing ? "Materyali Düzenle" : "Yeni Materyal"}</Text>
             
-            <Text style={styles.inputLabel}>Sınıf Seviyesi</Text>
+            <View style={{ marginBottom: 10 }}>
+                <Text style={{color: theme.subTextColor, marginBottom:5, fontSize:12, fontWeight:'bold'}}>BAŞLIK</Text>
+                <CustomInput value={videoData.baslik} onChangeText={(t) => setVideoData({...videoData, baslik: t})} />
+            </View>
+            
+            <Text style={[styles.inputLabel, { color: theme.subTextColor }]}>Sınıf Seviyesi</Text>
             <View style={styles.selectionRow}>
                 {['9', '10', '11', '12'].map(lvl => (
-                    <TouchableOpacity key={lvl} style={[styles.smallChip, videoData.sinif === lvl && styles.activeBlueChip]} onPress={() => setVideoData({...videoData, sinif: lvl})}>
-                        <Text style={[styles.chipText, videoData.sinif === lvl && styles.whiteText]}>{lvl}. Sınıf</Text>
+                    <TouchableOpacity 
+                        key={lvl} 
+                        style={[styles.smallChip, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }, videoData.sinif === lvl && styles.activeBlueChip]} 
+                        onPress={() => setVideoData({...videoData, sinif: lvl})}
+                    >
+                        <Text style={[styles.chipText, { color: theme.textColor }, videoData.sinif === lvl && styles.whiteText]}>{lvl}. Sınıf</Text>
                     </TouchableOpacity>
                 ))}
             </View>
 
-            <Text style={styles.inputLabel}>Başarı Aralığı</Text>
+            <Text style={[styles.inputLabel, { color: theme.subTextColor }]}>Başarı Aralığı</Text>
             <View style={styles.selectionRow}>
                 {['0-20', '20-40', '40-60', '60-80', '80-100'].map(range => (
-                    <TouchableOpacity key={range} style={[styles.rangeChip, videoData.aralik === range && styles.activeYellowChip]} onPress={() => setVideoData({...videoData, aralik: range})}>
-                        <Text style={[styles.rangeText, videoData.aralik === range && styles.whiteText]}>%{range}</Text>
+                    <TouchableOpacity 
+                        key={range} 
+                        style={[styles.rangeChip, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }, videoData.aralik === range && styles.activeYellowChip]} 
+                        onPress={() => setVideoData({...videoData, aralik: range})}
+                    >
+                        <Text style={[styles.rangeText, { color: theme.textColor }, videoData.aralik === range && styles.whiteText]}>%{range}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
 
             {!isEditing && (
-              <TouchableOpacity style={styles.filePicker} onPress={() => launchImageLibrary({mediaType:'video'}, (res) => res.assets && setVideoFile(res.assets[0]))}>
+              <TouchableOpacity style={[styles.filePicker, { backgroundColor: theme.inputBg, borderColor: theme.borderColor }]} onPress={() => launchImageLibrary({mediaType:'video'}, (res) => res.assets && setVideoFile(res.assets[0]))}>
                   <Icon name="videocam-outline" size={24} color="#4a90e2" />
                   <Text style={{marginLeft: 10, color: '#4a90e2'}}>{videoFile ? videoFile.fileName : "Video Seç"}</Text>
               </TouchableOpacity>
             )}
 
-            <CustomInput label="Video/URL" value={videoData.icerik} onChangeText={(t) => setVideoData({...videoData, icerik: t})} />
+            <View style={{ marginTop: 10 }}>
+                <Text style={{color: theme.subTextColor, marginBottom:5, fontSize:12, fontWeight:'bold'}}>İÇERİK (URL/METİN)</Text>
+                <CustomInput value={videoData.icerik} onChangeText={(t) => setVideoData({...videoData, icerik: t})} />
+            </View>
 
             <View style={{marginTop: 20}}>
                 <CustomButton title={uploading ? "İşleniyor..." : (isEditing ? "Güncelle" : "Yayınla")} onPress={handleSaveMaterial} color="#2ecc71" />
-                <TouchableOpacity onPress={() => { resetForm(); setActiveTab('students'); }} style={styles.cancelBtn}><Text>Vazgeç</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { resetForm(); setActiveTab('students'); }} style={styles.cancelBtn}><Text style={{color: theme.subTextColor}}>Vazgeç</Text></TouchableOpacity>
             </View>
         </ScrollView>
       )}
@@ -293,22 +317,22 @@ const TeacherDashboard = ({ route }) => {
       {/* İZLEME İSTATİSTİK MODALI */}
       <Modal visible={statsModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.statsModalContent}>
-            <Text style={styles.modalTitle}>İzleme Raporu</Text>
-            <Text style={styles.modalSub}>{selectedMaterialTitle}</Text>
+          <View style={[styles.statsModalContent, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.modalTitle, { color: theme.textColor }]}>İzleme Raporu</Text>
+            <Text style={[styles.modalSub, { color: theme.subTextColor }]}>{selectedMaterialTitle}</Text>
             
             <FlatList 
               data={materialStats}
               keyExtractor={(item, index) => index.toString()}
               renderItem={({ item }) => (
-                <View style={styles.statsRow}>
+                <View style={[styles.statsRow, { borderBottomColor: theme.borderColor }]}>
                   <View style={{flex: 1}}>
-                    <Text style={styles.studentNameText}>
+                    <Text style={[styles.studentNameText, { color: theme.textColor }]}>
                         {item.name} {item.lastname} 
-                        <Text style={{color: '#7f8c8d', fontSize: 12}}> ({item.sinif_adi || 'Sınıf Belirsiz'})</Text>
+                        <Text style={{color: theme.subTextColor, fontSize: 12}}> ({item.sinif_adi || 'Sınıf Belirsiz'})</Text>
                     </Text>
                     
-                    <View style={styles.progressBarContainer}>
+                    <View style={[styles.progressBarContainer, { backgroundColor: theme.inputBg }]}>
                       <View style={[
                         styles.progressBarFill, 
                         { width: `${item.watch_percent}%`, backgroundColor: item.is_completed ? '#50c878' : '#f1c40f' }
@@ -318,7 +342,7 @@ const TeacherDashboard = ({ route }) => {
                   <Text style={styles.percentText}>%{item.watch_percent}</Text>
                 </View>
               )}
-              ListEmptyComponent={<Text style={styles.emptyText}>Henüz kimse izlemedi.</Text>}
+              ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subTextColor }]}>Henüz kimse izlemedi.</Text>}
               style={{maxHeight: 400, marginVertical: 20}}
             />
 
@@ -330,20 +354,34 @@ const TeacherDashboard = ({ route }) => {
       {/* NOT GİRİŞ MODALI */}
       <Modal visible={gradeModalVisible} animationType="fade" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={styles.gradeModalContent}>
-            <Text style={styles.modalTitle}>{selectedStudent?.name} {selectedStudent?.lastname}</Text>
-            <Text style={styles.modalSub}>{selectedStudent?.lesson_name} Notları</Text>
+          <View style={[styles.gradeModalContent, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.modalTitle, { color: theme.textColor }]}>{selectedStudent?.name} {selectedStudent?.lastname}</Text>
+            <Text style={[styles.modalSub, { color: theme.subTextColor }]}>{selectedStudent?.lesson_name} Notları</Text>
             
             <View style={styles.gradeInputRow}>
-                <View style={{flex:1, marginRight:5}}><CustomInput label="Sınav 1" value={grades.s1} onChangeText={(t)=>setGrades({...grades, s1:t})} keyboardType="numeric" maxLength={3}/></View>
-                <View style={{flex:1}}><CustomInput label="Sınav 2" value={grades.s2} onChangeText={(t)=>setGrades({...grades, s2:t})} keyboardType="numeric" maxLength={3}/></View>
+                <View style={{flex:1, marginRight:5}}>
+                    <Text style={{color: theme.subTextColor, fontSize:10, marginBottom:2}}>Sınav 1</Text>
+                    <CustomInput value={grades.s1} onChangeText={(t)=>setGrades({...grades, s1:t})} keyboardType="numeric" maxLength={3}/>
+                </View>
+                <View style={{flex:1}}>
+                    <Text style={{color: theme.subTextColor, fontSize:10, marginBottom:2}}>Sınav 2</Text>
+                    <CustomInput value={grades.s2} onChangeText={(t)=>setGrades({...grades, s2:t})} keyboardType="numeric" maxLength={3}/>
+                </View>
             </View>
             <View style={styles.gradeInputRow}>
-                <View style={{flex:1, marginRight:5}}><CustomInput label="Sözlü 1" value={grades.sz1} onChangeText={(t)=>setGrades({...grades, sz1:t})} keyboardType="numeric" maxLength={3}/></View>
-                <View style={{flex:1}}><CustomInput label="Sözlü 2" value={grades.sz2} onChangeText={(t)=>setGrades({...grades, sz2:t})} keyboardType="numeric" maxLength={3}/></View>
+                <View style={{flex:1, marginRight:5}}>
+                    <Text style={{color: theme.subTextColor, fontSize:10, marginBottom:2}}>Sözlü 1</Text>
+                    <CustomInput value={grades.sz1} onChangeText={(t)=>setGrades({...grades, sz1:t})} keyboardType="numeric" maxLength={3}/>
+                </View>
+                <View style={{flex:1}}>
+                    <Text style={{color: theme.subTextColor, fontSize:10, marginBottom:2}}>Sözlü 2</Text>
+                    <CustomInput value={grades.sz2} onChangeText={(t)=>setGrades({...grades, sz2:t})} keyboardType="numeric" maxLength={3}/>
+                </View>
             </View>
 
-            <CustomButton title="Kaydet" onPress={handleUpdateGrades} color="#2ecc71" />
+            <View style={{marginTop: 15}}>
+                <CustomButton title="Kaydet" onPress={handleUpdateGrades} color="#2ecc71" />
+            </View>
             <TouchableOpacity onPress={() => setGradeModalVisible(false)} style={styles.cancelBtn}><Text style={{color:'#e84118'}}>Kapat</Text></TouchableOpacity>
           </View>
         </View>
@@ -353,50 +391,50 @@ const TeacherDashboard = ({ route }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f6fa' },
+  container: { flex: 1 }, // Arka plan dinamik
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { backgroundColor: '#4a90e2', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  headerSubtitle: { color: '#d1e3f8', fontSize: 11 },
+  header: { paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
+  headerSubtitle: { fontSize: 11 },
   addBtn: { backgroundColor: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
   addBtnText: { color: '#fff', marginLeft: 5, fontSize: 12 },
-  tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  tabBar: { flexDirection: 'row', borderBottomWidth: 1 },
   tabItem: { flex: 1, padding: 15, alignItems: 'center' },
   activeTabItem: { borderBottomWidth: 3, borderBottomColor: '#4a90e2' },
-  tabLabel: { color: '#7f8c8d', fontWeight: 'bold' },
+  tabLabel: { fontWeight: 'bold' },
   activeTabLabel: { color: '#4a90e2' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', margin: 15, paddingHorizontal: 15, borderRadius: 10, height: 45, elevation: 2 },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', margin: 15, paddingHorizontal: 15, borderRadius: 10, height: 45, elevation: 2 },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 14 },
-  fixedFilterSection: { paddingVertical: 10, paddingLeft: 15, height: 60, borderBottomWidth: 1, borderBottomColor: '#f1f2f6' },
+  fixedFilterSection: { paddingVertical: 10, paddingLeft: 15, height: 60, borderBottomWidth: 1 },
   formContainer: { padding: 20 },
-  formTitle: { fontSize: 22, fontWeight: 'bold', color: '#2d3436', marginBottom: 20 },
-  inputLabel: { fontSize: 13, fontWeight: 'bold', color: '#636e72', marginTop: 15, marginBottom: 8 },
+  formTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
+  inputLabel: { fontSize: 13, fontWeight: 'bold', marginTop: 15, marginBottom: 8 },
   selectionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  smallChip: { padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#dfe6e9', minWidth: 70, alignItems: 'center', backgroundColor: '#fff' },
-  rangeChip: { padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#dfe6e9', flex: 1, minWidth: '30%', alignItems: 'center', backgroundColor: '#fff' },
+  smallChip: { padding: 10, borderRadius: 10, borderWidth: 1, minWidth: 70, alignItems: 'center' },
+  rangeChip: { padding: 10, borderRadius: 10, borderWidth: 1, flex: 1, minWidth: '30%', alignItems: 'center' },
   activeBlueChip: { backgroundColor: '#4a90e2', borderColor: '#4a90e2' },
   activeYellowChip: { backgroundColor: '#f1c40f', borderColor: '#f1c40f' },
   whiteText: { color: '#fff', fontWeight: 'bold' },
-  chipText: { fontSize: 12, color: '#636e72' },
-  rangeText: { fontSize: 11, color: '#636e72' },
-  filePicker: { backgroundColor: '#f1f2f6', padding: 15, borderRadius: 12, alignItems: 'center', marginVertical: 15, flexDirection: 'row', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#4a90e2' },
-  materialCard: { backgroundColor: '#fff', padding: 15, borderRadius: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderLeftWidth: 5, borderLeftColor: '#f1c40f' },
+  chipText: { fontSize: 12 },
+  rangeText: { fontSize: 11 },
+  filePicker: { padding: 15, borderRadius: 12, alignItems: 'center', marginVertical: 15, flexDirection: 'row', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 1 },
+  materialCard: { padding: 15, borderRadius: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderLeftWidth: 5, borderLeftColor: '#f1c40f' },
   matTitle: { fontWeight: 'bold', fontSize: 15 },
-  matMeta: { fontSize: 11, color: '#7f8c8d', marginTop: 3 },
+  matMeta: { fontSize: 11, marginTop: 3 },
   actionRow: { flexDirection: 'row', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  gradeModalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 25, elevation: 5 },
-  statsModalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 25, elevation: 5, width: '90%' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', color: '#2d3436' },
-  modalSub: { fontSize: 14, color: '#7f8c8d', textAlign: 'center', marginBottom: 20 },
-  gradeInputRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  gradeModalContent: { borderRadius: 20, padding: 25, elevation: 5 },
+  statsModalContent: { borderRadius: 20, padding: 25, elevation: 5, width: '90%' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+  modalSub: { fontSize: 14, textAlign: 'center', marginBottom: 20 },
+  gradeInputRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   cancelBtn: { alignItems: 'center', marginTop: 15, padding: 5 },
-  statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f1f2f6' },
-  studentNameText: { fontSize: 14, fontWeight: '600', color: '#2d3436', marginBottom: 5 },
-  progressBarContainer: { height: 8, backgroundColor: '#f1f2f6', borderRadius: 4, overflow: 'hidden' },
+  statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1 },
+  studentNameText: { fontSize: 14, fontWeight: '600', marginBottom: 5 },
+  progressBarContainer: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 4 },
   percentText: { marginLeft: 15, fontSize: 14, fontWeight: 'bold', color: '#4a90e2', width: 45, textAlign: 'right' },
-  emptyText: { textAlign: 'center', color: '#7f8c8d', fontStyle: 'italic' }
+  emptyText: { textAlign: 'center', fontStyle: 'italic' }
 });
 
 export default TeacherDashboard;

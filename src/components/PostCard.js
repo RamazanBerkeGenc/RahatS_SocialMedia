@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { ThemeContext } from '../context/ThemeContext'; // [YENİ] Tema Context
 
 const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUserId, currentRole }) => {
   
+  // [YENİ] Tema Bağlantısı
+  const { theme } = useContext(ThemeContext);
+
   // Beğeni durumu kontrolü
   const isLiked = post.is_liked === 1;
 
@@ -15,7 +19,7 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
   // Gönderi sahibi kontrolü
   const isOwner = post.user_id == currentUserId && post.user_role == currentRole;
 
-  // [YENİ] Tarih Formatlama Fonksiyonu
+  // Tarih Formatlama Fonksiyonu
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -26,7 +30,7 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
     if (diff < 3600) return `${Math.floor(diff / 60)} dk önce`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} saat önce`;
     if (diff < 604800) return `${Math.floor(diff / 86400)} gün önce`;
-    return date.toLocaleDateString('tr-TR'); // Eskiyse tam tarih göster
+    return date.toLocaleDateString('tr-TR'); 
   };
 
   const confirmDelete = () => {
@@ -41,7 +45,7 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
   };
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: theme.cardBg }]}>
       {/* Header: Profil Bilgisi */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -50,22 +54,25 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
         >
           {/* Profil Resmi veya Baş Harf */}
           {post.author_image ? (
-            <Image source={{ uri: post.author_image }} style={styles.avatarImage} />
+            <Image 
+              source={{ uri: post.author_image }} 
+              style={[styles.avatarImage, { borderColor: theme.borderColor, backgroundColor: theme.inputBg }]} 
+            />
           ) : (
-            <View style={styles.avatarPlaceholder}>
+            <View style={[styles.avatarPlaceholder, { borderColor: theme.borderColor, backgroundColor: theme.inputBg }]}>
               <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
             </View>
           )}
 
           <View>
-            <Text style={styles.author}>{displayName}</Text>
+            <Text style={[styles.author, { color: theme.textColor }]}>{displayName}</Text>
             
             {/* Rol ve Tarih Yan Yana */}
             <View style={styles.subHeader}>
-              <Text style={styles.role}>
+              <Text style={[styles.role, { color: theme.subTextColor }]}>
                 {post.user_role === 'teacher' ? '👨‍🏫 Öğretmen' : '🎓 Öğrenci'}
               </Text>
-              <Text style={styles.dateText}>
+              <Text style={[styles.dateText, { color: theme.subTextColor }]}>
                 • {formatDate(post.created_at)}
               </Text>
             </View>
@@ -78,12 +85,12 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
             <Icon name="trash-outline" size={20} color="#ff4757" />
           </TouchableOpacity>
         ) : (
-          <Icon name="ellipsis-horizontal" size={20} color="#636e72" />
+          <Icon name="ellipsis-horizontal" size={20} color={theme.subTextColor} />
         )}
       </View>
       
       {/* İçerik */}
-      <Text style={styles.content}>{post.content}</Text>
+      <Text style={[styles.content, { color: theme.textColor }]}>{post.content}</Text>
       
       {/* Post Görseli */}
       {post.image_url && (
@@ -91,7 +98,7 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
       )}
 
       {/* Footer: Beğeni ve Yorum */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { borderTopColor: theme.borderColor }]}>
         <TouchableOpacity 
           style={styles.actionButton} 
           onPress={() => onLike(post.id)}
@@ -100,9 +107,9 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
           <Icon 
             name={isLiked ? "heart" : "heart-outline"} 
             size={22} 
-            color={isLiked ? "#e84118" : "#636e72"} 
+            color={isLiked ? "#e84118" : theme.subTextColor} 
           />
-          <Text style={[styles.actionText, isLiked && { color: '#e84118' }]}>
+          <Text style={[styles.actionText, { color: theme.subTextColor }, isLiked && { color: '#e84118' }]}>
             {post.like_count || 0}
           </Text>
         </TouchableOpacity>
@@ -113,7 +120,9 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
           activeOpacity={0.6}
         >
           <Icon name="chatbubble-outline" size={20} color="#4a90e2" />
-          <Text style={styles.actionText}>{post.comment_count || 0} Yorum</Text>
+          <Text style={[styles.actionText, { color: theme.subTextColor }]}>
+            {post.comment_count || 0} Yorum
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -122,7 +131,6 @@ const PostCard = ({ post, onLike, onComment, onProfilePress, onDelete, currentUs
 
 const styles = StyleSheet.create({
   card: { 
-    backgroundColor: '#fff', 
     marginBottom: 12, 
     padding: 15, 
     borderRadius: 12,
@@ -148,19 +156,15 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#f1f2f6'
   },
   avatarPlaceholder: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#f1f2f6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#eee'
   },
   avatarText: {
     fontWeight: 'bold',
@@ -170,7 +174,6 @@ const styles = StyleSheet.create({
   author: { 
     fontWeight: 'bold', 
     fontSize: 15, 
-    color: '#2d3436' 
   },
   subHeader: {
     flexDirection: 'row',
@@ -178,11 +181,9 @@ const styles = StyleSheet.create({
   },
   role: { 
     fontSize: 11, 
-    color: '#7f8c8d',
   },
   dateText: {
     fontSize: 11,
-    color: '#b2bec3',
     marginLeft: 6
   },
   deleteBtn: {
@@ -191,7 +192,6 @@ const styles = StyleSheet.create({
   content: { 
     fontSize: 15, 
     lineHeight: 22, 
-    color: '#2f3640',
     marginBottom: 12 
   },
   postImage: { 
@@ -204,7 +204,6 @@ const styles = StyleSheet.create({
   footer: { 
     flexDirection: 'row', 
     borderTopWidth: 0.8, 
-    borderTopColor: '#f1f2f6', 
     paddingTop: 12,
     marginTop: 5
   },
@@ -217,7 +216,6 @@ const styles = StyleSheet.create({
   actionText: {
     marginLeft: 6,
     fontSize: 13,
-    color: '#636e72',
     fontWeight: '600'
   }
 });
